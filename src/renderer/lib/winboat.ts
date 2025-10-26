@@ -277,6 +277,10 @@ export class Winboat {
         return Winboat.instance;
     }
 
+    get config() {
+        return this.#wbConfig?.config ?? null;
+    }
+
     private constructor() {
         this.#wbConfig = WinboatConfig.getInstance();
         this.containerMgr = createContainer(this.#wbConfig.config.containerRuntime);

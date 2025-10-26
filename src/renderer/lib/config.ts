@@ -75,6 +75,8 @@ export type WinboatConfigObj = {
     appsSortOrder: string;
     favoriteApps: string[];
     recentApps: Array<{ name: string, timestamp: number }>;
+    desktopShortcuts: string[]; // Array of app names that have desktop shortcuts
+    winboatExecutablePath?: string; // Custom path to WinBoat executable (for desktop shortcuts)
 };
 
 const currentVersion = new WinboatVersion(import.meta.env.VITE_APP_VERSION);
@@ -102,6 +104,8 @@ const defaultConfig: WinboatConfigObj = {
     appsSortOrder: 'name',
     favoriteApps: [],
     recentApps: [],
+    desktopShortcuts: [],
+    winboatExecutablePath: undefined,
 };
 
 export class WinboatConfig {
