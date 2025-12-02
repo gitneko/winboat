@@ -71,6 +71,7 @@ export const WINDOWS_LANGUAGES = {
 // WinBoat claims host ports 47270-47279 on 127.0.0.1 for its services.
 // The range is unassigned by IANA; 47275-47279 are reserved for future services.
 export const GUEST_NOVNC_PORT = 8006;
+export const GUEST_RDP_PORT = 3389;
 export const GUEST_API_PORT = 7148;
 export const GUEST_QMP_PORT = 7149;
 export const GUEST_UPDATE_PORT = 7150;
