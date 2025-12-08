@@ -3,8 +3,9 @@ set WB_DIR=C:\Program Files\WinBoat
 set OEM_DIR=C:\OEM
 set NSSM=%WB_DIR%\nssm.exe
 
-:: Registry tweaks (imported once at install time)
-reg import "%OEM_DIR%\RDPApps.reg"
+:: Setup RDP Applications and Tweaks
+reg import "%OEM_DIR%\RDPApps.reg" 
+reg import "%OEM_DIR%\RDPTweaks.reg"
 
 :: Create the install directory and exclude it from Windows Defender before
 :: copying anything in, so the guest binaries aren't scanned on write.
