@@ -15,6 +15,9 @@ import { ContainerRuntimes, createContainer } from "./containers/common";
 import { ContainerManager, ContainerStatus, isStaleContainerError } from "./containers/container";
 import { ExecFileAsyncError } from "./exec-helper";
 import { QMPManager } from "./qmp";
+import { ContainerManager, ContainerStatus } from "./containers/container";
+import { CommonPorts, ContainerRuntimes, createContainer, getActiveHostPort } from "./containers/common";
+import { getSymlinkCommands } from "./volumes";
 
 const nodeFetch: typeof import("node-fetch").default = require("node-fetch");
 const fs: typeof import("fs") = require("node:fs");
@@ -308,6 +311,8 @@ export class Winboat {
                 logger.info(`Winboat Guest API went ${this.isOnline.value ? "online" : "offline"}`);
 
                 if (this.isOnline.value) {
+                    // Create symlinks for custom volume mounts
+                    await this.createCustomMountSymlinks();
                     await this.checkVersionAndUpdateGuestServer();
                 }
             }
@@ -447,6 +452,32 @@ export class Winboat {
             username: compose.services.windows.environment.USERNAME,
             password: compose.services.windows.environment.PASSWORD,
         };
+    }
+
+    /**
+     * Creates symlinks in /tmp/smb/ for custom volume mounts
+     * This allows Windows to access them via \\host.lan\Data\<shareName>
+     */
+    async createCustomMountSymlinks() {
+        const mounts = this.#wbConfig?.config.customVolumeMounts || [];
+        const commands = getSymlinkCommands(mounts);
+
+        if (commands.length === 0) {
+            logger.info("No custom volume mounts to symlink");
+            return;
+        }
+
+        logger.info(`Creating symlinks for ${commands.length} custom volume mount(s)`);
+
+        for (const cmd of commands) {
+            try {
+                await execAsync(`docker exec WinBoat ${cmd}`);
+                logger.info(`Created symlink: ${cmd}`);
+            } catch (e) {
+                logger.error(`Failed to create symlink: ${cmd}`);
+                logger.error(e);
+            }
+        }
     }
 
     async #connectQMPManager() {
