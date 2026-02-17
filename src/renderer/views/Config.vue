@@ -12,6 +12,7 @@
                     unit="GB"
                     :min="MIN_VM_RAM_GB"
                     :max="maxRamGB"
+                    :disabled="isContainerRunning"
                     v-model:value="ramGB"
                 />
 
@@ -33,6 +34,7 @@
                     unit="Cores"
                     :min="2"
                     :max="maxNumCores"
+                    :disabled="isContainerRunning"
                     v-model:value="numCores"
                 />
 
@@ -41,6 +43,7 @@
                     icon="fluent:folder-link-32-filled"
                     title="Shared Folder"
                     type="switch"
+                    :disabled="isContainerRunning"
                     v-model:value="shareFolder"
                 >
                     <template v-slot:desc>
@@ -55,6 +58,7 @@
                     icon="mdi:folder-cog"
                     title="Shared Folder Location"
                     type="custom"
+                    :disabled="isContainerRunning"
                 >
                     <template v-slot:desc>
                         <span v-if="sharedFolderPath">
@@ -81,6 +85,29 @@
                     v-model:value="autoStartContainer"
                 />
 
+                <!-- FreeRDP Port -->
+                <ConfigCard
+                    icon="lucide:ethernet-port"
+                    title="FreeRDP Port"
+                    desc="You can change what port FreeRDP uses to communicate with the VM"
+                    type="custom"
+                    :disabled="isContainerRunning"
+                >
+                    <x-input
+                        class="max-w-16 text-right text-[1.1rem]"
+                        :value="Number.isNaN(freerdpPort) ? '' : freerdpPort"
+                        @input="
+                            (e: any) => {
+                                freerdpPort = Number(
+                                    /^\d+$/.exec(e.target.value)?.at(0) ||
+                                        portMapper?.getShortPortMapping(GUEST_RDP_PORT)?.host,
+                                );
+                            }
+                        "
+                    >
+                        <x-label v-if="Number.isNaN(freerdpPort)">None</x-label>
+                    </x-input>
+                </ConfigCard>
                 <div class="flex flex-col">
                     <p class="my-0 text-yellow-500" v-for="(warning, k) of warnings" :key="`warning-${k}`">
                         ⚠ {{ warning }}
@@ -817,6 +844,10 @@ const hasHostPort = () => compose.value?.services.windows.environment.HOST_PORTS
 
 const usbPassthroughDisabled = computed(() => {
     return !hasUsbVolume() || !hasQmpArgument() || !hasQmpPort() || !hasHostPort();
+});
+
+const isContainerRunning = computed(() => {
+    return winboat.containerStatus.value === ContainerStatus.RUNNING;
 });
 
 const saveButtonDisabled = computed(() => {
