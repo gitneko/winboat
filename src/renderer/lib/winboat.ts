@@ -773,6 +773,10 @@ export class Winboat {
 
         this.#wbConfig!.config = config;
 
+        // Notify main process to update tray
+        const { ipcRenderer: electronIpcRenderer } = require("electron");
+        electronIpcRenderer.send("update-tray");
+
         if (customAppCallbacks[app.Path]) {
             logger.info(`Found custom app command for '${app.Name}'`);
             customAppCallbacks[app.Path]!(this);
@@ -946,5 +950,22 @@ export class Winboat {
      */
     get hasQMPInterval() {
         return this.#qmpInterval !== null;
+    }
+
+    async launchAppByName(appName: string) {
+        if (!this.appMgr) return;
+        const apps = await this.appMgr.getApps(this.apiUrl!);
+        const app = apps.find(a => a.Name === appName);
+        if (app) {
+            await this.launchApp(app);
+        }
+    }
+
+    get apiUrl(): string | undefined {
+        const apiPort = getActiveHostPort(this.containerMgr!, CommonPorts.API);
+
+        if (!apiPort) return undefined;
+
+        return `http://127.0.0.1:${apiPort}`;
     }
 }

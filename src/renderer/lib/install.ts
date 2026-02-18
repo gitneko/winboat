@@ -24,12 +24,15 @@ export enum InstallStates {
     INSTALLING_WINDOWS = "Installing Windows",
     COMPLETED = "Completed",
     INSTALL_ERROR = "Install Error",
-}
+    RESTORING_DATA = "Restoring Data",
+};
 
 interface InstallEvents {
     stateChanged: (state: InstallStates) => void;
     preinstallMsg: (msg: string) => void;
     error: (error: Error) => void;
+    vncPortChanged: (port: number) => void;
+    progress: (percent: number) => void;
 }
 
 export class InstallManager {
@@ -38,13 +41,20 @@ export class InstallManager {
     state: InstallStates;
     preinstallMsg: string;
     container: ContainerManager;
+    progress: number;
 
     constructor(conf: InstallConfiguration) {
         this.conf = conf;
         this.state = InstallStates.IDLE;
         this.preinstallMsg = "";
+        this.progress = 0;
         this.emitter = createNanoEvents<InstallEvents>();
         this.container = createContainer(conf.container);
+    }
+
+    setProgress(percent: number) {
+        this.progress = Math.min(100, Math.max(0, percent));
+        this.emitter.emit("progress", this.progress);
     }
 
     changeState(newState: InstallStates) {
@@ -106,7 +116,7 @@ export class InstallManager {
         }
 
         // Shared folder mapping
-        const sharedFolderIdx = composeContent.services.windows.volumes.findIndex(vol => vol.includes("/shared") || isRootSharedFolderMount(vol));
+        const sharedFolderIdx = composeContent.services.windows.volumes.findIndex(vol => vol.includes("/shared"));
 
         if (!this.conf.sharedFolderPath) {
             // Remove shared folder if not enabled
@@ -152,6 +162,13 @@ export class InstallManager {
         // Check if the source directory exists
         if (!fs.existsSync(appPath)) {
             const error = new Error(`Guest server directory not found at: ${appPath}`);
+            logger.error(error.message);
+            throw error;
+        }
+
+        // Verify the executable exists in dev mode to catch build issues early
+        if (!remote.app.isPackaged && !fs.existsSync(path.join(appPath, "winboat_guest_server.exe"))) {
+            const error = new Error(`Guest server executable not found in ${appPath}. Did you run 'npm run build:gs'?`);
             logger.error(error.message);
             throw error;
         }
@@ -314,6 +331,39 @@ export class InstallManager {
         this.changeState(InstallStates.COMPLETED);
 
         logger.info("Installation completed successfully.");
+    }
+
+    async restore(backupPath: string) {
+        logger.info(`Starting restore from ${backupPath}...`);
+
+        try {
+            await this.createComposeFile();
+            this.setProgress(5);
+
+            this.changeState(InstallStates.STARTING_CONTAINER);
+            // Create container and volumes WITHOUT starting it
+            await this.container.compose("up", ["--no-start"]);
+            this.setProgress(15);
+
+            this.changeState(InstallStates.RESTORING_DATA);
+            await this.container.importBackup(backupPath, { includeStorage: true, includeSettings: true });
+            this.setProgress(85);
+
+            await this.createOEMAssets();
+            this.setProgress(90);
+
+            await this.startContainer();
+            this.setProgress(95);
+
+            this.changeState(InstallStates.COMPLETED);
+            this.setProgress(100);
+            logger.info("Restore completed successfully.");
+        } catch (e: any) {
+            this.changeState(InstallStates.INSTALL_ERROR);
+            logger.error("Restore failed");
+            logger.error(e);
+            throw e;
+        }
     }
 }
 
