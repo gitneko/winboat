@@ -6,7 +6,8 @@ import { createNanoEvents, type Emitter } from "nanoevents";
 import { Winboat } from "./winboat";
 import { ContainerManager } from "./containers/container";
 import { WinboatConfig } from "./config";
-import { createContainer } from "./containers/common";
+import { CommonPorts, createContainer, getActiveHostPort } from "./containers/common";
+import { isRootSharedFolderMount } from "./volumes";
 
 const fs: typeof import("fs") = require("fs");
 const path: typeof import("path") = require("path");
@@ -105,7 +106,7 @@ export class InstallManager {
         }
 
         // Shared folder mapping
-        const sharedFolderIdx = composeContent.services.windows.volumes.findIndex(vol => vol.includes("/shared"));
+        const sharedFolderIdx = composeContent.services.windows.volumes.findIndex(vol => vol.includes("/shared") || isRootSharedFolderMount(vol));
 
         if (!this.conf.sharedFolderPath) {
             // Remove shared folder if not enabled
