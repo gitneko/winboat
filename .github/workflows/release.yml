@@ -44,6 +44,11 @@ jobs:
                   else
                     echo "Automatic workflow triggered by ${{ github.event_name }}"
                   fi
+            - name: Use ENV to replace targets
+              run: |
+                  if [[ -n "$ELECTRON_TARGET" ]]; then
+                    sed -i 's/"target": \["appimage", "deb", "rpm", "tar.bz2"\]/"target": ["'$ELECTRON_TARGET'"]/' electron-builder.json
+                  fi
             - name: Install system dependencies
               run: |
                   sudo apt-get update
@@ -68,8 +73,16 @@ jobs:
               run: |
                   bun -e "const p=require('./package.json'); console.log('NAME='+p.name)" >> "$GITHUB_OUTPUT"
                   bun -e "const p=require('./package.json'); console.log('VERSION='+p.version)" >> "$GITHUB_OUTPUT"
-                  ARCH_FROM_FILE=$(ls dist/*.{AppImage,deb,rpm,tar.bz2} 2>/dev/null | head -n1 | xargs -I{} basename {} | sed -E 's/.*-([A-Za-z0-9_]+)\.[^.]+$/\1/')
-                  if [ -n "$ARCH_FROM_FILE" ]; then
+
+                  # Prevents unmatched extensions from turning into literal strings
+                  shopt -s nullglob
+
+                  # Store matching files directly into an array
+                  files=(dist/*.{AppImage,deb,rpm,tar.bz2})
+
+                  # Extract architecture from the first file found, or default to empty
+                  if [ ${#files[@]} -gt 0 ]; then
+                      ARCH_FROM_FILE=$(basename "${files[0]}" | sed -E 's/.*-([A-Za-z0-9_]+)\.[^.]+$/\1/')
                     echo "ARCH=$ARCH_FROM_FILE" >> "$GITHUB_OUTPUT"
                   else
                     BUN_ARCH=$(bun -p "process.arch")
@@ -80,6 +93,9 @@ jobs:
                       *)     echo "ARCH=$BUN_ARCH" >> "$GITHUB_OUTPUT" ;;
                     esac
                   fi
+
+                  # Turn nullglob back off to keep the environment clean
+                  shopt -u nullglob
             - name: Upload AppImage
               uses: actions/upload-artifact@v7
               with:
