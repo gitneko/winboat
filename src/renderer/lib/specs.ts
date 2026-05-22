@@ -46,7 +46,16 @@ export async function getSpecs() {
     // KVM check
     try {
         const cpuInfo = fs.readFileSync("/proc/cpuinfo", "utf8");
-        const elLevel = (await execAsync("journalctl -k | grep -i 'EL2'")).stdout.trim();
+
+        // ARM virtualization bit check
+        // This can fail on non-ARM devices
+        let elLevel = '';
+        try {
+            elLevel = (await execAsync("journalctl -k | grep -i 'EL2'")).stdout.trim();
+        } catch (e) {
+            console.error("Error reading or checking journalctl for EL2 (ARM virt bit)", e);
+        }
+
         if (
             (cpuInfo.includes("vmx") || cpuInfo.includes("svm") || elLevel.includes("EL2")) &&
             fs.existsSync("/dev/kvm")
