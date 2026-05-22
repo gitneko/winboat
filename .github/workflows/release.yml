@@ -20,7 +20,10 @@ on:
                     - guest-server-only
 jobs:
     build:
-        runs-on: ubuntu-22.04
+        runs-on: ${{ matrix.os }}
+        strategy:
+          matrix:
+            os: [ubuntu-22.04, ubuntu-22.04-arm]
         if: >-
             (github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')) ||
             (github.event_name == 'workflow_dispatch' && github.event.inputs.build_type != 'guest-server-only')
