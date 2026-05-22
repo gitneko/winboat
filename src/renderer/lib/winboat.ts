@@ -5,6 +5,7 @@ import type {
     CustomAppCallbacks,
     GuestServerUpdateResponse,
     GuestServerVersion,
+    MemoryStats,
     Metrics,
     WinApp,
 } from "../../types";
@@ -250,6 +251,12 @@ export class Winboat {
             percentage: 0,
         },
     });
+    memoryStats: Ref<MemoryStats> = ref<MemoryStats>({
+        used: 0,
+        total: 0,
+        totalAvailable: 0,
+        percentage: 0,
+    });
     readonly #wbConfig: WinboatConfig | null = null;
     appMgr: AppManager | null = null;
     qmpMgr: QMPManager | null = null;
@@ -308,6 +315,11 @@ export class Winboat {
 
                 if (this.isOnline.value) {
                     await this.checkVersionAndUpdateGuestServer();
+
+                    // If experimental features are enable, ensure that the ballooning service is installed.
+                    if (this.#wbConfig?.config.experimentalFeatures) {
+                        await this.checkBallooningService();
+                    }
                 }
             }
         }, HEALTH_WAIT_MS);
@@ -322,7 +334,23 @@ export class Winboat {
         this.#metricsInverval = setInterval(async () => {
             // If the guest is offline or updating, don't bother checking metrics
             if (!this.isOnline.value || this.isUpdatingGuestServer.value) return;
-            this.metrics.value = await this.getMetrics();
+
+            const metrics = await this.getMetrics();
+
+            // Get the current balloon AFTER guest metrics, to reduce out-of-sync data.
+            const actualBalloon = await this.getActualBalloon();
+
+            const balloonSize = !isNaN(actualBalloon) ? Math.max(metrics.ram.total - actualBalloon, 0) : 0;
+
+            this.metrics.value = metrics;
+            this.memoryStats.value = {
+                used: Math.max(metrics.ram.used - balloonSize, 0),
+                total: metrics.ram.total,
+                totalAvailable: metrics.ram.total - balloonSize,
+                percentage: !isNaN(actualBalloon) && actualBalloon > 0 
+                    ? ((metrics.ram.used - balloonSize) / actualBalloon) * 100 
+                    : metrics.ram.percentage,
+            };
         }, METRICS_WAIT_MS);
 
         // *** RDP Connection Status Interval ***
@@ -395,7 +423,7 @@ export class Winboat {
             // Side effect: We must destroy the QMP Manager
             try {
                 if (this.qmpMgr && (await this.qmpMgr.isAlive())) {
-                    this.qmpMgr.qmpSocket.destroy();
+                    this.qmpMgr.disconnect();
                 }
                 this.qmpMgr = null;
                 logger.info("[destroyAPIIntervals] QMP Manager destroyed because container is no longer running");
@@ -420,6 +448,24 @@ export class Winboat {
         const res = await nodeFetch(`${this.apiUrl}/metrics`, { signal: AbortSignal.timeout(FETCH_TIMEOUT) });
         const metrics = (await res.json()) as Metrics;
         return metrics;
+    }
+    
+    async getActualBalloon() {
+        // If experimental feature are enabled fetch balloon size from QMP (if available)
+        if (this.#wbConfig?.config.experimentalFeatures) {
+            let response = null;
+            try {
+                response = await this.qmpMgr!.executeCommand("query-balloon");
+                assert("result" in response);
+                // @ts-ignore property "result" already exists due to assert
+                return Math.round(response!.return.actual / (1024**2));
+            } catch (e) {
+                logger.error("There was an error checking for balloon");
+                logger.error(e);
+                logger.error(`QMP response: ${JSON.stringify(response)}`);
+            }
+        }
+        return NaN;
     }
 
     async getRDPConnectedStatus() {
@@ -617,7 +663,32 @@ export class Winboat {
     }
 
     async launchApp(app: WinApp) {
-        if (!this.isOnline) throw new Error("Cannot launch app, Winboat is offline");
+        if (!this.isOnline.value) throw new Error("Cannot launch app, Winboat is offline");
+
+        // Track recent app
+        const config = this.#wbConfig!.config;
+        const recentApps = config.recentApps;
+        const existingIndex = recentApps.findIndex(r => r.name === app.Name);
+
+        if (existingIndex > -1) {
+            recentApps.splice(existingIndex, 1);
+        }
+
+        recentApps.unshift({
+            name: app.Name,
+            timestamp: Date.now()
+        });
+
+        // Keep only last 15 apps
+        if (recentApps.length > 15) {
+            recentApps.length = 15;
+        }
+
+        this.#wbConfig!.config = config;
+
+        // Notify main process to update tray
+        const { ipcRenderer: electronIpcRenderer } = require("electron");
+        electronIpcRenderer.send("update-tray");
 
         if (customAppCallbacks[app.Path]) {
             logger.info(`Found custom app command for '${app.Name}'`);
@@ -652,7 +723,8 @@ export class Winboat {
 
         if (app.Path == InternalApps.WINDOWS_DESKTOP) {
             args = args.concat([
-                "+f",
+                this.#wbConfig?.config.desktopSize == "fullscreen" ? "+f" : "",
+                `/size:${this.#wbConfig?.config.desktopSize}`,
                 this.#wbConfig?.config.smartcardEnabled ? "/smartcard" : "",
                 `/scale:${this.#wbConfig?.config.scale ?? 100}`,
             ]);
@@ -796,11 +868,46 @@ export class Winboat {
         this.isUpdatingGuestServer.value = false;
     }
 
+    async checkBallooningService() {
+        // Check if ballooning service is installed in the Windows vm (automatically installed by newer 
+        // version of dockurr/windows image), and  install it if missing.
+        try {
+            const statusRes = await nodeFetch(`${this.apiUrl}/balloon/status`);
+            const status = (await statusRes.json()) as { status: string; details: string };
+            
+            if (status.status === "not-installed") {
+                logger.info("Balloon service not installed, installing...");
+                const installRes = await nodeFetch(`${this.apiUrl}/balloon/install`, { 
+                    method: "POST"
+                });
+                const installResult = (await installRes.json()) as { result: string; details: string };
+                
+                if (installResult.result === "success") {
+                    logger.info("Balloon service installed successfully");
+                } else {
+                    logger.error(`Failed to install balloon service: ${installResult.details}`);
+                }
+            }
+        } catch (e) {
+            logger.error("Failed to check/install balloon service");
+            logger.error(e);
+        }
+    }
+
     /**
      * Whether or not the Winboat singleton has a QMP interval active
      */
     get hasQMPInterval() {
         return this.#qmpInterval !== null;
+    }
+
+    async launchAppByName(appName: string) {
+        if (!this.appMgr) return;
+        const apps = await this.appMgr.getApps(this.apiUrl!);
+        const app = apps.find(a => a.Name === appName);
+        if (app) {
+            await this.launchApp(app);
+        }
     }
 
     get apiUrl(): string | undefined {

@@ -31,6 +31,7 @@ export type WinApp = {
     Icon: string;
     Source: string;
     Usage?: number;
+    lastLaunched?: number;
 };
 
 export type CustomAppCallbacks = {
@@ -88,6 +89,13 @@ export type ComposeConfig = {
     };
 };
 
+export type MemoryStats = {
+    used: number; // RAM Usage in MB (e.g. 500)
+    total: number; // RAM Total in MB (e.g. 4096)
+    totalAvailable: number; // RAM Total Available after balloon in MB (e.g. 3584)
+    percentage: number; // RAM Usage in percentage (e.g. 70%)
+};
+
 export type Metrics = {
     cpu: {
         usage: number; // Percentage, from 0 to 100%
@@ -121,4 +129,10 @@ export type USBDevice = {
     vendorID: string;
     productID: string;
     alias: string;
+};
+
+export type CustomVolumeMount = {
+    hostPath: string;
+    shareName: string;
+    enabled: boolean;
 };

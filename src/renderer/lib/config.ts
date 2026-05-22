@@ -1,6 +1,6 @@
 const fs: typeof import("fs") = require("node:fs");
 const path: typeof import("path") = require("node:path");
-import { type WinApp } from "../../types";
+import { type WinApp, type CustomVolumeMount } from "../../types";
 import { WINBOAT_DIR } from "./constants";
 import { type PTSerializableDeviceInfo } from "./usbmanager";
 import { ContainerRuntimes } from "./containers/common";
@@ -23,7 +23,7 @@ export class WinboatVersion {
         const versionNumbers = versionTags[0].split(".").map(value => {
             const parsedValue = parseInt(value);
 
-            if(Number.isNaN(parsedValue)) {
+            if (Number.isNaN(parsedValue)) {
                 throw new Error(`Invalid winboat version format: '${versionToken}'`);
             }
 
@@ -59,6 +59,7 @@ export enum MultiMonitorMode {
 export type WinboatConfigObj = {
     scale: number;
     scaleDesktop: number;
+    desktopSize: string,
     smartcardEnabled: boolean;
     rdpMonitoringEnabled: boolean;
     passedThroughDevices: PTSerializableDeviceInfo[];
@@ -69,8 +70,11 @@ export type WinboatConfigObj = {
     rdpArgs: RdpArg[];
     disableAnimations: boolean;
     containerRuntime: ContainerRuntimes;
+    customVolumeMounts: CustomVolumeMount[];
     versionData: WinboatVersionData;
     appsSortOrder: string;
+    favoriteApps: string[];
+    recentApps: Array<{ name: string, timestamp: number }>;
 };
 
 const currentVersion = new WinboatVersion(import.meta.env.VITE_APP_VERSION);
@@ -78,6 +82,7 @@ const currentVersion = new WinboatVersion(import.meta.env.VITE_APP_VERSION);
 const defaultConfig: WinboatConfigObj = {
     scale: 100,
     scaleDesktop: 100,
+    desktopSize: "fullscreen",
     smartcardEnabled: false,
     rdpMonitoringEnabled: false,
     passedThroughDevices: [],
@@ -89,17 +94,20 @@ const defaultConfig: WinboatConfigObj = {
     disableAnimations: false,
     // TODO: Ideally should be podman once we flesh out everything
     containerRuntime: ContainerRuntimes.DOCKER,
+    customVolumeMounts: [],
     versionData: {
         previous: currentVersion, // As of 0.9.0 this won't exist on the filesystem, so we just set it to the current version
         current: currentVersion
     },
     appsSortOrder: 'name',
+    favoriteApps: [],
+    recentApps: [],
 };
 
 export class WinboatConfig {
     private static readonly configPath: string = path.join(WINBOAT_DIR, "winboat.config.json");
     private static instance: WinboatConfig | null = null;
-    
+
     // Due to us wrapping WinboatConfig in reactive, this can't be private
     configData: WinboatConfigObj = { ...defaultConfig };
 
@@ -112,7 +120,7 @@ export class WinboatConfig {
         this.configData = WinboatConfig.readConfigObject()!;
 
         // Set correct versionData
-        if(this.config.versionData.current.versionToken !== currentVersion.versionToken) {
+        if (this.config.versionData.current.versionToken !== currentVersion.versionToken) {
             this.config.versionData.previous = this.config.versionData.current;
             this.config.versionData.current = currentVersion;
 
@@ -165,7 +173,7 @@ export class WinboatConfig {
             const configObjRaw = JSON.parse(rawConfig);
 
             // Parse winboat version data
-            if(configObjRaw.versionData) {
+            if (configObjRaw.versionData) {
                 configObjRaw.versionData.current = new WinboatVersion(configObjRaw.versionData.current);
                 configObjRaw.versionData.previous = new WinboatVersion(configObjRaw.versionData.previous);
             }
@@ -175,25 +183,37 @@ export class WinboatConfig {
             console.log("Successfully read the config file");
 
             // Some fields might be missing after an update, so we merge them with the default config
+            let configModified = false;
             for (const key in defaultConfig) {
-                let hasMissing = false;
                 if (!(key in configObj)) {
                     // @ts-expect-error This is valid
                     configObj[key] = defaultConfig[key];
-                    hasMissing = true;
+                    configModified = true;
                     console.log(
-                        `Added missing config key: ${key} with default value: ${
-                            JSON.stringify(defaultConfig[key as keyof WinboatConfigObj])
+                        `Added missing config key: ${key} with default value: ${JSON.stringify(defaultConfig[key as keyof WinboatConfigObj])
                         }`,
                     );
                 }
+            }
 
-                // If we have any missing keys, we should just write the config back to disk so those new keys are saved
-                // We cannot use this.writeConfig() here since #configData is not populated yet
-                if (hasMissing) {
-                    fs.writeFileSync(WinboatConfig.configPath, JSON.stringify(configObj, null, 4), "utf-8");
-                    console.log("Wrote updated config with missing keys to disk");
-                }
+            // Migrate old customVolumeMounts format (containerPath -> shareName)
+            if (configObj.customVolumeMounts) {
+                configObj.customVolumeMounts = configObj.customVolumeMounts.map((mount: any) => {
+                    if ('containerPath' in mount && !('shareName' in mount)) {
+                        // Extract share name from containerPath (e.g., "/gamez" -> "gamez")
+                        const shareName = mount.containerPath.replace(/^\//, '').replace(/[^a-zA-Z0-9_-]/g, '');
+                        console.log(`Migrated volume mount containerPath '${mount.containerPath}' to shareName '${shareName}'`);
+                        configModified = true;
+                        return { hostPath: mount.hostPath, shareName, enabled: mount.enabled };
+                    }
+                    return mount;
+                });
+            }
+
+            // If config was modified, write it back to disk
+            if (configModified) {
+                fs.writeFileSync(WinboatConfig.configPath, JSON.stringify(configObj, null, 4), "utf-8");
+                console.log("Wrote updated config to disk");
             }
 
             return { ...configObj };
