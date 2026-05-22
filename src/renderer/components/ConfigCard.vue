@@ -135,6 +135,9 @@ type PropsType = {
 };
 
 const props = defineProps<PropsType>();
+const emit = defineEmits<{
+    (e: "toggle"): void;
+}>();
 const value = defineModel("value");
 
 function ensureNumericInput(e: any) {

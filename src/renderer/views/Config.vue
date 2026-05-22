@@ -122,6 +122,9 @@
                     </x-button>
                 </ConfigCard>
 
+                <!-- Custom Folder Mounts -->
+                <CustomVolumeMounts v-model="customVolumeMounts" />
+
                 <!-- Auto Start Container -->
                 <ConfigCard
                     icon="clarity:power-solid"
@@ -715,6 +718,13 @@ import {
     GUEST_QMP_PORT,
 } from "../lib/constants";
 import { ComposePortEntry, ComposePortMapper, Range } from "../utils/port";
+import CustomVolumeMounts from "../components/CustomVolumeMounts.vue";
+import type { CustomVolumeMount } from "../../types";
+import {
+    applyCustomMounts,
+    getSharedFolderHostPath,
+    isRootSharedFolderMount,
+} from "../lib/volumes";
 const { app }: typeof import("@electron/remote") = require("@electron/remote");
 const electron: typeof import("electron") = require("electron").remote || require("@electron/remote");
 const os: typeof import("os") = require("node:os");
@@ -743,6 +753,9 @@ const isApplyingChanges = ref(false);
 const resetQuestionCounter = ref(0);
 const isResettingWinboat = ref(false);
 const isUpdatingUSBPrerequisites = ref(false);
+
+const customVolumeMounts = ref<CustomVolumeMount[]>([]);
+const origCustomVolumeMounts = ref<CustomVolumeMount[]>([]);
 
 // For Backup & Restore
 const isBackingUp = ref(false);
@@ -902,13 +915,10 @@ async function assignValues() {
         && compose.value.services.windows.environment["BALLOONING"] == "Y";
     origMemoryBallooning.value = memoryBallooning.value;
 
-    // Find any volume that ends with /shared
-    const sharedVolume = compose.value.services.windows.volumes.find(v => v.includes("/shared"));
-    if (sharedVolume) {
+    const sharedFolderHostPath = getSharedFolderHostPath(compose.value);
+    if (sharedFolderHostPath) {
         shareFolder.value = true;
-        // Extract the path before :/shared
-        const [hostPath] = sharedVolume.split(":");
-        sharedFolderPath.value = hostPath.replace("${HOME}", os.homedir());
+        sharedFolderPath.value = sharedFolderHostPath;
     } else {
         shareFolder.value = false;
         sharedFolderPath.value = "";
@@ -921,6 +931,9 @@ async function assignValues() {
 
     freerdpPort.value = (portMapper.value.getShortPortMapping(GUEST_RDP_PORT)?.host as number) ?? GUEST_RDP_PORT;
     origFreerdpPort.value = freerdpPort.value;
+
+    customVolumeMounts.value = [...wbConfig.config.customVolumeMounts];
+    origCustomVolumeMounts.value = [...wbConfig.config.customVolumeMounts];
 
     const specs = await getSpecs();
     maxRamGB.value = specs.ramGB;
@@ -937,19 +950,16 @@ async function saveCompose() {
     compose.value!.services.windows.environment.RAM_SIZE = `${ramGB.value}G`;
     compose.value!.services.windows.environment.CPU_CORES = `${numCores.value}`;
 
+
     if (memoryBallooning.value) {
         compose.value!.services.windows.environment["BALLOONING"] = "Y";
     } else if ("BALLOONING" in compose.value!.services.windows.environment) {
         delete compose.value!.services.windows.environment["BALLOONING"];
     }
 
-    // Remove any existing shared volume
-    const existingSharedVolume = compose.value!.services.windows.volumes.find(v => v.includes("/shared"));
-    if (existingSharedVolume) {
-        compose.value!.services.windows.volumes = compose.value!.services.windows.volumes.filter(
-            v => !v.includes("/shared"),
-        );
-    }
+    compose.value!.services.windows.volumes = compose.value!.services.windows.volumes.filter(
+        volume => !isRootSharedFolderMount(volume),
+    );
 
     // Add the new shared volume if enabled
     if (shareFolder.value && sharedFolderPath.value) {
@@ -958,6 +968,10 @@ async function saveCompose() {
     }
 
     compose.value!.services.windows.restart = autoStartContainer.value ? RESTART_ON_FAILURE : RESTART_NO;
+
+    // Apply custom volume mounts
+    applyCustomMounts(compose.value!, customVolumeMounts.value);
+    wbConfig.config.customVolumeMounts = [...customVolumeMounts.value];
 
     portMapper.value!.setShortPortMapping(GUEST_RDP_PORT, freerdpPort.value, {
         protocol: "tcp",
@@ -1104,7 +1118,8 @@ const saveButtonDisabled = computed(() => {
         shareFolder.value !== origShareFolder.value ||
         sharedFolderPath.value !== origSharedFolderPath.value ||
         (!Number.isNaN(freerdpPort.value) && freerdpPort.value !== origFreerdpPort.value) ||
-        autoStartContainer.value !== origAutoStartContainer.value;
+        autoStartContainer.value !== origAutoStartContainer.value ||
+        JSON.stringify(customVolumeMounts.value) !== JSON.stringify(origCustomVolumeMounts.value);
 
     const shouldBeDisabled = errors.value?.length || !hasResourceChanges || isApplyingChanges.value;
 
