@@ -31,6 +31,7 @@ export type WinApp = {
     Icon: string;
     Source: string;
     Usage?: number;
+    lastLaunched?: number;
 };
 
 export type CustomAppCallbacks = {
@@ -86,6 +87,13 @@ export type ComposeConfig = {
             devices: string[];
         };
     };
+};
+
+export type MemoryStats = {
+    used: number; // RAM Usage in MB (e.g. 500)
+    total: number; // RAM Total in MB (e.g. 4096)
+    totalAvailable: number; // RAM Total Available after balloon in MB (e.g. 3584)
+    percentage: number; // RAM Usage in percentage (e.g. 70%)
 };
 
 export type Metrics = {
