@@ -62,6 +62,7 @@ const windowStore = new Store<SchemaType>({
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
+let containerStatus = "exited"; // running | paused | exited
 
 const CONFIG_PATH = join(os.homedir(), ".winboat", "winboat.config.json");
 
@@ -86,6 +87,26 @@ function updateTrayMenu() {
         },
     }));
 
+    const containerActions =
+        containerStatus === "exited"
+            ? [{ label: "Run Container", click: () => mainWindow?.webContents.send("container-action", "start") }]
+            : [
+                  containerStatus === "paused"
+                      ? {
+                            label: "Unpause Container",
+                            click: () => mainWindow?.webContents.send("container-action", "unpause"),
+                        }
+                      : {
+                            label: "Pause Container",
+                            click: () => mainWindow?.webContents.send("container-action", "pause"),
+                        },
+                  {
+                      label: "Restart Container",
+                      click: () => mainWindow?.webContents.send("container-action", "restart"),
+                  },
+                  { label: "Stop Container", click: () => mainWindow?.webContents.send("container-action", "stop") },
+              ];
+
     const contextMenu = Menu.buildFromTemplate([
         { label: "WinBoat", enabled: false },
         { type: "separator" },
@@ -109,8 +130,7 @@ function updateTrayMenu() {
             submenu: recentAppsMenu.length > 0 ? recentAppsMenu : [{ label: "No recent apps", enabled: false }],
         },
         { type: "separator" },
-        { label: "Run Container", click: () => mainWindow?.webContents.send("container-action", "start") },
-        { label: "Pause Container", click: () => mainWindow?.webContents.send("container-action", "pause") },
+        ...containerActions,
         { type: "separator" },
         {
             label: "Quit",
@@ -152,6 +172,11 @@ function createTray() {
 
     tray.setToolTip("WinBoat");
 }
+
+ipcMain.on("container-status", (_event, status) => {
+    containerStatus = status;
+    updateTrayMenu();
+});
 
 // Request single instance lock before doing anything else
 // This must happen BEFORE app.whenReady() so second instances can pass args and exit silently

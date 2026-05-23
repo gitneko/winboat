@@ -169,7 +169,9 @@
                         <h2 class="my-0 text-2xl">RAM</h2>
                     </div>
                     <p class="!my-0 text-gray-400 h-6 overflow-hidden">
-                        <span v-if="showBallooned">{{ (winboat.memoryStats.value.totalAvailable / 1024).toFixed(2) }}/</span>{{ Math.round(winboat.memoryStats.value.total / 1024).toFixed(2) }} GB Total
+                        <span v-if="showBallooned"
+                            >{{ (winboat.memoryStats.value.totalAvailable / 1024).toFixed(2) }}/</span
+                        >{{ Math.round(winboat.memoryStats.value.total / 1024).toFixed(2) }} GB Total
                     </p>
                     <p class="!my-0 text-gray-400 h-6 overflow-hidden">
                         {{ (winboat.memoryStats.value.used / 1024).toFixed(2) }} GB Used
@@ -203,7 +205,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, computed } from "vue";
+import { onMounted, ref, computed, watch } from "vue";
 import { Winboat } from "../lib/winboat";
 import { ContainerStatus } from "../lib/containers/common";
 import { type ComposeConfig } from "../../types";
@@ -215,6 +217,11 @@ import { openAnchorLink, openContainerLogFile } from "../utils/openLink";
 const winboat = Winboat.getInstance();
 const compose = ref<ComposeConfig | null>(null);
 const wallpaper = ref("");
+const { ipcRenderer } = require("electron");
+
+watch(winboat.containerStatus, newStatus => {
+    ipcRenderer.send("container-status", newStatus.toLowerCase());
+});
 
 onMounted(async () => {
     compose.value = Winboat.readCompose(winboat.containerMgr!.composeFilePath);
@@ -229,9 +236,11 @@ onMounted(async () => {
 
 const showBallooned = computed(() => {
     // Total ram is rounded to GB, so we show the ballooned value only if lesser than the rounded total memory
-    return (winboat.memoryStats.value.totalAvailable / 1024).toFixed(2) < Math.round(winboat.memoryStats.value.total / 1024);
+    return (
+        (winboat.memoryStats.value.totalAvailable / 1024).toFixed(2) <
+        Math.round(winboat.memoryStats.value.total / 1024)
+    );
 });
-
 
 const chartOptions = ref({
     chart: {
