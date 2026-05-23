@@ -355,6 +355,20 @@ func setAuthHash(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
+func getWindows(w http.ResponseWriter, r *http.Request) {
+	// Execute PowerShell script to enumerate RAIL windows
+	cmd := exec.Command("powershell", "-ExecutionPolicy", "Bypass", "-File", "scripts\\get-windows.ps1")
+	output, err := cmd.Output()
+	if err != nil {
+		http.Error(w, "Failed to execute script: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	w.Write(output)
+}
+
 func main() {
 	// Try to initialize auth key hash if not present
 	existingHash, err := getSecureRegKey(AUTHKEY_HASH_REG)
@@ -391,6 +405,7 @@ func main() {
 	r.HandleFunc("/update", applyUpdate).Methods("POST")
 	r.HandleFunc("/get-icon", getIcon).Methods("POST")
 	r.HandleFunc("/auth/set-hash", setAuthHash).Methods("POST")
+	r.HandleFunc("/windows", getWindows).Methods("GET")
 	handler := cors.Default().Handler(r)
 
 	log.Println("Starting WinBoat Guest Server on :7148...")
