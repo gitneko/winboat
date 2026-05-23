@@ -325,7 +325,7 @@ export class Winboat {
      */
     async createAPIIntervals() {
         logger.info("Creating Winboat API intervals...");
-        const HEALTH_WAIT_MS = 1000;
+        const HEALTH_WAIT_MS = 5000; // 1000ms is too disruptive (the API might come up and go in a loop)
         const METRICS_WAIT_MS = 1000;
         const RDP_STATUS_WAIT_MS = 1000;
 
