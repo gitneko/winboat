@@ -29,6 +29,7 @@ import { QMPManager } from "./qmp";
 import { ContainerManager, ContainerStatus } from "./containers/container";
 export { ContainerStatus };
 import { CommonPorts, ContainerRuntimes, createContainer, getActiveHostPort } from "./containers/common";
+import { ComposePortEntry, PortManager } from "../utils/port";
 import { WindowStateManager } from "./WindowStateManager";
 
 const nodeFetch: typeof import("node-fetch").default = require("node-fetch");
@@ -332,7 +333,7 @@ export class Winboat {
         // If the container was already running before opening WinBoat, the ports will already be used by the container
         // So we don't need to remap any ports
         if (!this.portMgr.value) {
-            const compose = this.parseCompose();
+            const compose = Winboat.readCompose(this.containerMgr!.composeFilePath);
             const portMgr = await PortManager.parseCompose(compose, {
                 findOpenPorts: false,
             });
