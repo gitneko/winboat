@@ -1,9 +1,14 @@
 <template>
     <div class="flex flex-col gap-10 overflow-x-hidden" :class="{ hidden: !maxNumCores }">
-        <dialog ref="showLogsDialog" class="bg-transparent backdrop:bg-black/90 max-w-5xl w-full p-0 rounded-2xl overflow-hidden shadow-2xl border border-white/10 m-auto text-white outline-none">
+        <dialog
+            ref="showLogsDialog"
+            class="bg-transparent backdrop:bg-black/90 max-w-5xl w-full p-0 rounded-2xl overflow-hidden shadow-2xl border border-white/10 m-auto text-white outline-none"
+        >
             <div class="bg-[#1a1b23] flex flex-col h-[80vh] w-full">
                 <!-- Header -->
-                <div class="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-black/20 backdrop-blur-sm sticky top-0 z-10">
+                <div
+                    class="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-black/20 backdrop-blur-sm sticky top-0 z-10"
+                >
                     <div class="flex items-center gap-3">
                         <div class="p-2 rounded-lg bg-violet-500/10 text-violet-400 border border-violet-500/20">
                             <Icon icon="solar:file-text-bold-duotone" class="size-5" />
@@ -15,37 +20,50 @@
                     </div>
                     <div class="flex items-center gap-3">
                         <div class="flex items-center gap-1 bg-black/40 rounded-lg p-1 border border-white/5">
-                            <button 
-                                @click="copyLogContent" 
+                            <button
+                                @click="copyLogContent"
                                 class="px-3 py-1.5 rounded-md hover:bg-white/10 transition-all flex items-center gap-2 group"
                                 title="Copy to Clipboard"
                             >
-                                <Icon icon="solar:copy-bold" class="size-4 text-white/50 group-hover:text-violet-400 transition-colors" />
-                                <span class="text-xs font-bold text-white/50 group-hover:text-white transition-colors">Copy</span>
+                                <Icon
+                                    icon="solar:copy-bold"
+                                    class="size-4 text-white/50 group-hover:text-violet-400 transition-colors"
+                                />
+                                <span class="text-xs font-bold text-white/50 group-hover:text-white transition-colors"
+                                    >Copy</span
+                                >
                             </button>
                             <div class="w-px h-4 bg-white/10"></div>
-                            <button 
-                                @click="saveLogFile" 
+                            <button
+                                @click="saveLogFile"
                                 class="px-3 py-1.5 rounded-md hover:bg-white/10 transition-all flex items-center gap-2 group"
                                 title="Save to File"
                             >
-                                <Icon icon="solar:diskette-bold" class="size-4 text-white/50 group-hover:text-blue-400 transition-colors" />
-                                <span class="text-xs font-bold text-white/50 group-hover:text-white transition-colors">Save</span>
+                                <Icon
+                                    icon="solar:diskette-bold"
+                                    class="size-4 text-white/50 group-hover:text-blue-400 transition-colors"
+                                />
+                                <span class="text-xs font-bold text-white/50 group-hover:text-white transition-colors"
+                                    >Save</span
+                                >
                             </button>
                         </div>
-                        
-                        <button 
-                            @click="closeLogsDialog" 
+
+                        <button
+                            @click="closeLogsDialog"
                             class="p-2 rounded-lg hover:bg-red-500/10 hover:text-red-400 transition-all text-white/20 ml-2"
                         >
                             <Icon icon="solar:close-circle-bold" class="size-6" />
                         </button>
                     </div>
                 </div>
-                
+
                 <!-- Content -->
                 <div class="flex-grow overflow-auto p-6 bg-[#0d0e12] font-mono text-xs text-gray-300 custom-scrollbar">
-                    <pre class="whitespace-pre-wrap break-all leading-relaxed opacity-90 selection:bg-violet-500/30 selection:text-white">{{ currentLogContent }}</pre>
+                    <pre
+                        class="whitespace-pre-wrap break-all leading-relaxed opacity-90 selection:bg-violet-500/30 selection:text-white"
+                        >{{ currentLogContent }}</pre
+                    >
                 </div>
             </div>
         </dialog>
@@ -65,7 +83,7 @@
                     v-model:value="ramGB"
                 />
 
-                <ConfigCard 
+                <ConfigCard
                     v-show="wbConfig.config.experimentalFeatures"
                     icon="game-icons:ram"
                     title="Dynamic memory"
@@ -111,15 +129,12 @@
                 >
                     <template v-slot:desc>
                         <span v-if="sharedFolderPath">
-                            Currently sharing: <span class="font-mono bg-neutral-700 rounded-md px-1 py-0.5">{{ sharedFolderPath }}</span>
+                            Currently sharing:
+                            <span class="font-mono bg-neutral-700 rounded-md px-1 py-0.5">{{ sharedFolderPath }}</span>
                         </span>
-                        <span v-else>
-                            Select a folder to share with Windows
-                        </span>
+                        <span v-else> Select a folder to share with Windows </span>
                     </template>
-                    <x-button @click="selectSharedFolder">
-                        Browse
-                    </x-button>
+                    <x-button @click="selectSharedFolder"> Browse </x-button>
                 </ConfigCard>
 
                 <!-- Custom Folder Mounts -->
@@ -398,9 +413,8 @@
         </div>
         <div>
             <x-label class="mb-4 text-neutral-300">General</x-label>
-            
-            <div class="flex flex-col gap-4">
 
+            <div class="flex flex-col gap-4">
                 <!-- Desktop Size -->
                 <x-card
                     class="flex relative z-30 flex-row justify-between items-center p-2 py-3 my-0 w-full backdrop-blur-xl backdrop-brightness-150 bg-neutral-800/20"
@@ -498,9 +512,9 @@
                     v-model:value="wbConfig.config.multiMonitor"
                 >
                     <template v-slot:desc>
-                        Controls how multiple monitors are handled. MultiMon creates separate displays for each
-                        monitor, while Span stretches the display across all monitors. Note: Span or MultiMon may
-                        work better depending on your setup.
+                        Controls how multiple monitors are handled. MultiMon creates separate displays for each monitor,
+                        while Span stretches the display across all monitors. Note: Span or MultiMon may work better
+                        depending on your setup.
                     </template>
                 </ConfigCard>
 
@@ -561,31 +575,41 @@
 
         <div>
             <x-label class="mb-4 text-neutral-300">System Logs</x-label>
-             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                 <button 
-                    v-for="log in logFiles" 
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <button
+                    v-for="log in logFiles"
                     :key="log"
                     class="group relative overflow-hidden rounded-xl bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/5 hover:border-violet-500/50 hover:from-violet-500/10 hover:to-violet-500/5 transition-all p-4 text-left flex items-center gap-4 outline-none focus:ring-2 focus:ring-violet-500/50"
                     @click="viewLog(log)"
-                 >
-                    <div class="p-2.5 rounded-lg bg-black/40 text-violet-400 group-hover:text-violet-300 group-hover:bg-violet-500/20 border border-white/5 group-hover:border-violet-500/20 transition-all shadow-lg">
+                >
+                    <div
+                        class="p-2.5 rounded-lg bg-black/40 text-violet-400 group-hover:text-violet-300 group-hover:bg-violet-500/20 border border-white/5 group-hover:border-violet-500/20 transition-all shadow-lg"
+                    >
                         <Icon icon="solar:file-text-bold-duotone" class="size-6" />
                     </div>
                     <div class="flex flex-col z-10">
-                        <span class="text-sm font-bold text-white/90 group-hover:text-white transition-colors">{{ log }}</span>
-                        <span class="text-[0.65rem] font-bold text-white/30 uppercase tracking-wider group-hover:text-violet-300/70 transition-colors flex items-center gap-1">
+                        <span class="text-sm font-bold text-white/90 group-hover:text-white transition-colors">{{
+                            log
+                        }}</span>
+                        <span
+                            class="text-[0.65rem] font-bold text-white/30 uppercase tracking-wider group-hover:text-violet-300/70 transition-colors flex items-center gap-1"
+                        >
                             LOG FILE
                         </span>
                     </div>
-                    
+
                     <!-- Hover Effect Background -->
-                    <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.03] to-transparent -translate-x-full group-hover:translate-x-full duration-1000 transition-transform ease-in-out"></div>
-                    
+                    <div
+                        class="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.03] to-transparent -translate-x-full group-hover:translate-x-full duration-1000 transition-transform ease-in-out"
+                    ></div>
+
                     <!-- Arrow -->
-                    <div class="absolute right-4 opacity-0 -translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 text-violet-400">
+                    <div
+                        class="absolute right-4 opacity-0 -translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 text-violet-400"
+                    >
                         <Icon icon="solar:alt-arrow-right-bold" class="size-5" />
                     </div>
-                 </button>
+                </button>
             </div>
         </div>
 
@@ -595,61 +619,83 @@
                 <x-card class="p-6 backdrop-blur-xl bg-neutral-800/20 border border-white/5 rounded-2xl">
                     <div class="flex flex-col md:flex-row gap-6 items-start md:items-center justify-between">
                         <div class="flex items-center gap-4">
-                            <div class="p-3 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 shadow-lg shadow-blue-500/5">
+                            <div
+                                class="p-3 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 shadow-lg shadow-blue-500/5"
+                            >
                                 <Icon icon="solar:cloud-upload-bold-duotone" class="size-8" />
                             </div>
                             <div class="flex flex-col">
                                 <h3 class="text-lg font-bold text-white/90">Backup & Restore</h3>
                                 <p class="text-sm text-white/40 max-w-md">
-                                    Create a portable archive of your Windows storage volume or restore from an existing backup.
+                                    Create a portable archive of your Windows storage volume or restore from an existing
+                                    backup.
                                 </p>
                             </div>
                         </div>
                         <div class="flex flex-wrap gap-3 w-full md:w-auto">
-                            <x-button 
-                                @click="handleExportBackup" 
-                                :disabled="isBackingUp || isRestoring || isContainerRunning || (!backupIncludeStorage && !backupIncludeSettings)"
+                            <x-button
+                                @click="handleExportBackup"
+                                :disabled="
+                                    isBackingUp ||
+                                    isRestoring ||
+                                    isContainerRunning ||
+                                    (!backupIncludeStorage && !backupIncludeSettings)
+                                "
                                 class="flex-grow md:flex-initial !bg-blue-600/20 hover:!bg-blue-600/30 transition-all border border-blue-500/20"
                             >
                                 <Icon v-if="!isBackingUp" icon="solar:download-square-bold" class="mr-2 size-5" />
                                 <x-throbber v-else class="mr-2 size-5" />
-                                <x-label>{{ isBackingUp ? 'Exporting...' : 'Export Backup' }}</x-label>
+                                <x-label>{{ isBackingUp ? "Exporting..." : "Export Backup" }}</x-label>
                             </x-button>
-                            <x-button 
-                                @click="handleImportBackup" 
-                                :disabled="isBackingUp || isRestoring || isContainerRunning || (!backupIncludeStorage && !backupIncludeSettings)"
+                            <x-button
+                                @click="handleImportBackup"
+                                :disabled="
+                                    isBackingUp ||
+                                    isRestoring ||
+                                    isContainerRunning ||
+                                    (!backupIncludeStorage && !backupIncludeSettings)
+                                "
                                 class="flex-grow md:flex-initial !bg-violet-600/20 hover:!bg-violet-600/30 transition-all border border-violet-500/20"
                             >
                                 <Icon v-if="!isRestoring" icon="solar:upload-square-bold" class="mr-2 size-5" />
                                 <x-throbber v-else class="mr-2 size-5" />
-                                <x-label>{{ isRestoring ? 'Importing...' : 'Restore Backup' }}</x-label>
+                                <x-label>{{ isRestoring ? "Importing..." : "Restore Backup" }}</x-label>
                             </x-button>
                         </div>
                     </div>
 
                     <div class="flex flex-col gap-3 mt-6 pt-6 border-t border-white/5">
                         <div class="flex items-center gap-2">
-                            <span class="text-[0.65rem] font-black text-white/20 uppercase tracking-[0.2em]">Backup Options</span>
+                            <span class="text-[0.65rem] font-black text-white/20 uppercase tracking-[0.2em]"
+                                >Backup Options</span
+                            >
                             <div class="h-px flex-grow bg-white/5"></div>
                         </div>
                         <div class="flex flex-wrap gap-x-12 gap-y-3 items-center">
-                            <x-checkbox 
-                                :toggled="backupIncludeStorage" 
+                            <x-checkbox
+                                :toggled="backupIncludeStorage"
                                 @toggle="backupIncludeStorage = !backupIncludeStorage"
                                 :disabled="isBackingUp || isRestoring || isContainerRunning"
                             >
-                                <x-label class="text-sm font-medium text-white/70">Windows Data (Storage Volume)</x-label>
+                                <x-label class="text-sm font-medium text-white/70"
+                                    >Windows Data (Storage Volume)</x-label
+                                >
                             </x-checkbox>
-                            <x-checkbox 
-                                :toggled="backupIncludeSettings" 
+                            <x-checkbox
+                                :toggled="backupIncludeSettings"
                                 @toggle="backupIncludeSettings = !backupIncludeSettings"
                                 :disabled="isBackingUp || isRestoring || isContainerRunning"
                             >
-                                <x-label class="text-sm font-medium text-white/70">App Settings (Config & Compose)</x-label>
+                                <x-label class="text-sm font-medium text-white/70"
+                                    >App Settings (Config & Compose)</x-label
+                                >
                             </x-checkbox>
                         </div>
                     </div>
-                    <div v-if="backupError" class="mt-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-center gap-2">
+                    <div
+                        v-if="backupError"
+                        class="mt-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-center gap-2"
+                    >
                         <Icon icon="solar:danger-bold" class="size-5" />
                         {{ backupError }}
                     </div>
@@ -659,24 +705,29 @@
 
         <div>
             <x-label class="mb-4 text-neutral-300 font-bold uppercase tracking-wider text-xs">Danger Zone</x-label>
-            <x-card class="p-6 backdrop-blur-xl bg-red-500/5 border border-red-500/10 rounded-2xl overflow-hidden relative">
+            <x-card
+                class="p-6 backdrop-blur-xl bg-red-500/5 border border-red-500/10 rounded-2xl overflow-hidden relative"
+            >
                 <div class="absolute top-0 right-0 p-8 opacity-[0.03] pointer-events-none">
                     <Icon icon="mdi:bomb" class="size-32" />
                 </div>
-                
+
                 <div class="flex flex-col md:flex-row gap-6 items-start md:items-center justify-between relative z-10">
                     <div class="flex items-center gap-4">
-                        <div class="p-3 rounded-xl bg-red-500/10 text-red-400 border border-red-500/20 shadow-lg shadow-red-500/5">
+                        <div
+                            class="p-3 rounded-xl bg-red-500/10 text-red-400 border border-red-500/20 shadow-lg shadow-red-500/5"
+                        >
                             <Icon icon="solar:danger-triangle-bold-duotone" class="size-8" />
                         </div>
                         <div class="flex flex-col">
                             <h3 class="text-lg font-bold text-red-200">Reset WinBoat</h3>
                             <p class="text-sm text-red-200/40 max-w-md">
-                                Completely remove the Windows container and all associated data. This action is <span class="text-red-400/80 font-bold underline">permanent</span> and cannot be undone.
+                                Completely remove the Windows container and all associated data. This action is
+                                <span class="text-red-400/80 font-bold underline">permanent</span> and cannot be undone.
                             </p>
                         </div>
                     </div>
-                    
+
                     <div class="w-full md:w-auto">
                         <x-button
                             class="w-full md:w-auto !bg-red-600/20 hover:!bg-red-600/30 !text-red-300 border border-red-500/20 transition-all font-bold px-6 py-3"
@@ -710,21 +761,11 @@ import { Icon } from "@iconify/vue";
 import { MultiMonitorMode, RdpArg, WinboatConfig } from "../lib/config";
 import { USBManager, type PTSerializableDeviceInfo } from "../lib/usbmanager";
 import { type Device } from "usb";
-import {
-    USB_VID_BLACKLIST,
-    RESTART_ON_FAILURE,
-    RESTART_NO,
-    GUEST_RDP_PORT,
-    GUEST_QMP_PORT,
-} from "../lib/constants";
+import { USB_VID_BLACKLIST, RESTART_ON_FAILURE, RESTART_NO, GUEST_RDP_PORT, GUEST_QMP_PORT } from "../lib/constants";
 import { ComposePortEntry, ComposePortMapper, Range } from "../utils/port";
 import CustomVolumeMounts from "../components/CustomVolumeMounts.vue";
 import type { CustomVolumeMount } from "../../types";
-import {
-    applyCustomMounts,
-    getSharedFolderHostPath,
-    isRootSharedFolderMount,
-} from "../lib/volumes";
+import { applyCustomMounts, getSharedFolderHostPath, isRootSharedFolderMount } from "../lib/volumes";
 const { app }: typeof import("@electron/remote") = require("@electron/remote");
 const electron: typeof import("electron") = require("electron").remote || require("@electron/remote");
 const os: typeof import("os") = require("node:os");
@@ -777,7 +818,7 @@ async function handleExportBackup() {
         try {
             await winboat.containerMgr!.exportBackup(filePath, {
                 includeStorage: backupIncludeStorage.value,
-                includeSettings: backupIncludeSettings.value
+                includeSettings: backupIncludeSettings.value,
             });
         } catch (e: any) {
             backupError.value = `Export failed: ${e.message}`;
@@ -801,8 +842,10 @@ async function handleImportBackup() {
             title: "Confirm Restore",
             message: `This will overwrite your current ${[
                 backupIncludeStorage.value ? "Windows storage" : "",
-                backupIncludeSettings.value ? "settings" : ""
-            ].filter(Boolean).join(" and ")}. This action cannot be undone. Are you sure?`,
+                backupIncludeSettings.value ? "settings" : "",
+            ]
+                .filter(Boolean)
+                .join(" and ")}. This action cannot be undone. Are you sure?`,
         });
 
         if (choice === 1) {
@@ -811,9 +854,9 @@ async function handleImportBackup() {
             try {
                 await winboat.containerMgr!.importBackup(filePaths[0], {
                     includeStorage: backupIncludeStorage.value,
-                    includeSettings: backupIncludeSettings.value
+                    includeSettings: backupIncludeSettings.value,
                 });
-                
+
                 if (backupIncludeSettings.value) {
                     // Refresh config and UI
                     await assignValues();
@@ -867,9 +910,9 @@ async function saveLogFile() {
     const { filePath } = await electron.dialog.showSaveDialog({
         title: `Save ${currentLogFileName.value}`,
         defaultPath: currentLogFileName.value,
-        filters: [{ name: "Log Files", extensions: ["log", "txt"] }]
+        filters: [{ name: "Log Files", extensions: ["log", "txt"] }],
     });
-    
+
     if (filePath) {
         fs.writeFileSync(filePath, currentLogContent.value);
     }
@@ -910,9 +953,9 @@ async function assignValues() {
     ramGB.value = Number(compose.value.services.windows.environment.RAM_SIZE.split("G")[0]);
     origRamGB.value = ramGB.value;
 
-    memoryBallooning.value = 
-        "BALLOONING" in compose.value.services.windows.environment
-        && compose.value.services.windows.environment["BALLOONING"] == "Y";
+    memoryBallooning.value =
+        "BALLOONING" in compose.value.services.windows.environment &&
+        compose.value.services.windows.environment["BALLOONING"] == "Y";
     origMemoryBallooning.value = memoryBallooning.value;
 
     const sharedFolderHostPath = getSharedFolderHostPath(compose.value);
@@ -949,7 +992,6 @@ async function assignValues() {
 async function saveCompose() {
     compose.value!.services.windows.environment.RAM_SIZE = `${ramGB.value}G`;
     compose.value!.services.windows.environment.CPU_CORES = `${numCores.value}`;
-
 
     if (memoryBallooning.value) {
         compose.value!.services.windows.environment["BALLOONING"] = "Y";
@@ -1083,6 +1125,11 @@ const errors = computedAsync(async () => {
         errCollection.push("You cannot allocate more RAM to Windows than you have available");
     }
 
+    // @ts-ignore The left-hand side of an 'instanceof' expression must be of type 'any', an object type or a type parameter.
+    if (freerdpPort.value instanceof Range) {
+        freerdpPort.value = freerdpPort.value.start;
+    }
+
     if (
         freerdpPort.value !== origFreerdpPort.value &&
         !Number.isNaN(freerdpPort.value) &&
@@ -1187,7 +1234,7 @@ async function toggleExperimentalFeatures() {
 }
 
 // Watch for when shared folder is enabled and set default path
-watch(shareFolder, (newValue) => {
+watch(shareFolder, newValue => {
     if (newValue && !sharedFolderPath.value) {
         sharedFolderPath.value = os.homedir();
     }
