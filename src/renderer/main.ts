@@ -77,7 +77,7 @@ async function launchAppWithContainerHandling(
         console.log("Waiting for Winboat to be online...");
         launchState.updateStep("waiting-online");
         let attempts = 0;
-        const maxAttempts = 30;
+        const maxAttempts = 120;
         while (!winboat.isOnline.value && attempts < maxAttempts) {
             await new Promise(resolve => setTimeout(resolve, 1000));
             attempts++;
@@ -135,12 +135,7 @@ ipcRenderer.on("launch-app-from-shortcut", async (_event, appName: string) => {
     // Start loading UI
     launchState.startLaunch(appName);
 
-    await launchAppWithContainerHandling(
-        winboat,
-        launchState,
-        apps => apps.find(a => a.Name === appName),
-        appName,
-    );
+    await launchAppWithContainerHandling(winboat, launchState, apps => apps.find(a => a.Name === appName), appName);
 });
 
 // Handle app launch from desktop shortcuts (by path)
@@ -154,11 +149,5 @@ ipcRenderer.on("launch-app-from-shortcut-by-path", async (_event, appPath: strin
     // Start loading UI - use path as display name for internal apps
     launchState.startLaunch(appPath);
 
-    await launchAppWithContainerHandling(
-        winboat,
-        launchState,
-        apps => apps.find(a => a.Path === appPath),
-        appPath,
-    );
+    await launchAppWithContainerHandling(winboat, launchState, apps => apps.find(a => a.Path === appPath), appPath);
 });
-
