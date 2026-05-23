@@ -1,5 +1,23 @@
 <template>
     <div>
+        <!-- Loading Overlay -->
+        <Transition name="fade">
+            <div
+                v-if="launchingApp"
+                class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm"
+            >
+                <div class="relative mb-4">
+                    <img
+                        class="size-20 rounded-xl"
+                        :src="`data:image/png;charset=utf-8;base64,${launchingApp.Icon}`"
+                        alt="App Icon"
+                    />
+                    <x-throbber class="absolute inset-0 m-auto size-10"></x-throbber>
+                </div>
+                <p class="mt-4 text-lg font-semibold text-white">Opening {{ launchingApp.Name }}...</p>
+            </div>
+        </Transition>
+
         <dialog ref="addCustomAppDialog">
             <h3 class="mb-2">{{ currentAppForm.Source === "custom" ? "Edit App" : "Add App" }}</h3>
             <div class="flex flex-row gap-5 mt-4 w-[35vw]">
@@ -157,8 +175,6 @@
                             </x-label>
                         </x-menuitem>
 
-
-
                         <x-menuitem value="recent">
                             <x-label>
                                 <span class="qualifier"> Filter: </span>
@@ -193,23 +209,21 @@
         <div v-if="winboat.isOnline.value" class="px-2">
             <!-- Default View with Sections -->
             <div v-if="isDefaultView" class="flex flex-col gap-8">
-
                 <!-- Recent Section -->
                 <section v-if="recentApps.length > 0">
                     <div class="flex items-center gap-2 mb-4 px-1">
                         <h2 class="text-base font-bold text-white tracking-wide">Recent</h2>
                     </div>
-                    <TransitionGroup
-                        name="apps"
-                        tag="x-card"
-                        class="grid gap-4 bg-transparent border-none app-grid"
-                    >
+                    <TransitionGroup name="apps" tag="x-card" class="grid gap-4 bg-transparent border-none app-grid">
                         <x-card
                             v-for="app of recentApps"
                             :key="app.id"
                             class="flex relative flex-row gap-2 justify-between items-center p-2 my-0 backdrop-blur-xl backdrop-brightness-150 cursor-pointer generic-hover bg-neutral-800/20"
-                            :class="{ 'bg-gradient-to-r from-yellow-600/20 bg-neutral-800/20': app.Source === 'custom' }"
-                            @click="winboat.launchApp(app)"
+                            :class="{
+                                'bg-gradient-to-r from-yellow-600/20 bg-neutral-800/20': app.Source === 'custom',
+                                'pointer-events-none opacity-50': launchingApp,
+                            }"
+                            @click="handleAppLaunch(app)"
                             @contextmenu="openContextMenu($event, app)"
                         >
                             <div class="flex flex-row items-center gap-2 flex-1 min-w-0">
@@ -232,17 +246,16 @@
                     <div class="flex items-center gap-2 mb-4 px-1" v-if="recentApps.length > 0">
                         <h2 class="text-base font-bold text-white tracking-wide">All Apps</h2>
                     </div>
-                    <TransitionGroup
-                        name="apps"
-                        tag="x-card"
-                        class="grid gap-4 bg-transparent border-none app-grid"
-                    >
+                    <TransitionGroup name="apps" tag="x-card" class="grid gap-4 bg-transparent border-none app-grid">
                         <x-card
                             v-for="app of sortedApps"
                             :key="app.id"
                             class="flex relative flex-row gap-2 justify-between items-center p-2 my-0 backdrop-blur-xl backdrop-brightness-150 cursor-pointer generic-hover bg-neutral-800/20"
-                            :class="{ 'bg-gradient-to-r from-yellow-600/20 bg-neutral-800/20': app.Source === 'custom' }"
-                            @click="winboat.launchApp(app)"
+                            :class="{
+                                'bg-gradient-to-r from-yellow-600/20 bg-neutral-800/20': app.Source === 'custom',
+                                'pointer-events-none opacity-50': launchingApp,
+                            }"
+                            @click="handleAppLaunch(app)"
                             @contextmenu="openContextMenu($event, app)"
                         >
                             <div class="flex flex-row items-center gap-2 flex-1 min-w-0">
@@ -276,7 +289,7 @@
                         'bg-gradient-to-r from-yellow-600/20 bg-neutral-800/20': app.Source === 'custom',
                         'app-launching': launchingAppId === app.id,
                     }"
-                    @click="handleLaunchApp(app)"
+                    @click="handleAppLaunch(app)"
                     @contextmenu="openContextMenu($event, app)"
                 >
                     <div class="flex flex-row items-center gap-2 w-[85%]">
@@ -371,6 +384,7 @@ const FormData: typeof import("form-data") = require("form-data");
 const winboat = Winboat.getInstance();
 const desktopShortcuts = DesktopShortcutsManager.getInstance();
 const apps = ref<WinApp[]>([]);
+const launchingApp = ref<WinApp | null>(null);
 const searchInput = ref("");
 const sortBy = ref("");
 const filterBy = ref("all");
@@ -420,13 +434,13 @@ const recentApps = computed(() => {
 
 const sortedApps = computed(() => {
     let list = [...apps.value];
-    
+
     if (sortBy.value === "usage") {
         list.sort((a, b) => (b.Usage ?? 0) - (a.Usage ?? 0));
     } else {
         list.sort((a, b) => a.Name.localeCompare(b.Name));
     }
-    
+
     return list;
 });
 
@@ -444,9 +458,8 @@ const computedApps = computed(() => {
     } else if (filterBy.value !== "all") {
         appsCache = appsCache.filter(app => app.Source === filterBy.value);
     }
-    
-    // ... rest of computedApps logic
 
+    // ... rest of computedApps logic
 
     if (searchInput.value) {
         appsCache = appsCache.filter(app => app.Name.toLowerCase().includes(searchInput.value.toLowerCase()));
@@ -494,7 +507,7 @@ async function refreshApps() {
             // Find last launched timestamp
             const recentApp = config.recentApps.find(r => r.name === app.Name);
             const lastLaunched = recentApp?.timestamp;
-            
+
             return {
                 ...app,
                 id: crypto.randomUUID(),
@@ -659,8 +672,70 @@ function onContextMenuHide() {
 
 function launchApp() {
     if (contextMenuTarget.value) {
-        winboat.launchApp(contextMenuTarget.value);
+        handleAppLaunch(contextMenuTarget.value);
     }
+}
+
+/**
+ * Handles app launch with loading state management and spam-click prevention.
+ * Polls the guest server to detect when the process is actually running.
+ */
+async function handleAppLaunch(app: WinApp) {
+    console.log("Handle app launch: ", app.Name);
+    if (launchingApp.value) return; // Prevent double-clicks
+    launchingApp.value = app;
+
+    let cancelAction = false;
+
+    // Fire and forget - don't await since launchApp blocks until app closes
+    winboat.launchApp(app).catch(err => {
+        cancelAction = true;
+        console.error("Error launching app:", err);
+    });
+
+    // For UWP apps (launched via explorer.exe), we can't detect the actual process
+    // For non-.exe files (.msc, etc.), they're opened by other host processes
+    // We hope that .lnk files are pointing to .exe files, otherwise we'll be stuck for 10s
+    const isUwpApp = app.Source === "uwp";
+    const appPath = app.Path.toLowerCase();
+    const isExecutable = appPath.endsWith(".exe") || appPath.endsWith(".lnk");
+
+    if (isUwpApp || !isExecutable) {
+        // Can't track these by process path, use timeout
+        setTimeout(() => {
+            launchingApp.value = null;
+        }, 3000);
+        return;
+    }
+
+    // Poll for process status (max ~10 seconds, check every 1s, timeout 1s at worst, should return within 100ms)
+    // If spawning the FreeRDP process fails, the polling gets automatically cancelled
+    const maxAttempts = 20;
+    for (let i = 0; i < maxAttempts; i++) {
+        if (cancelAction) {
+            break;
+        }
+
+        await new Promise(r => setTimeout(r, 1000));
+        try {
+            const running = await winboat.isProcessRunning(app.Path);
+            console.log("Process running: ", running);
+
+            // If we're starting a lnk file, we can check if realPath contains an actual exe path,
+            // if that is not the case, we directly abort after about 5 attempts (5 attempts to mimic ~3s)
+            if (
+                running &&
+                (running.running ||
+                    (running.realPath && !running.realPath.toLowerCase().endsWith(".exe") && maxAttempts >= 5))
+            ) {
+                break;
+            }
+        } catch {
+            // Ignore errors and continue polling
+        }
+    }
+
+    launchingApp.value = null;
 }
 
 /**
@@ -719,8 +794,6 @@ async function removeCustomApp() {
     await winboat.appMgr!.removeCustomApp(app);
     await refreshApps();
 }
-
-
 
 async function resetCustomAppForm() {
     // So there is no visual flicker while the dialog is closing

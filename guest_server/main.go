@@ -6,6 +6,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -16,10 +17,13 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/go-ole/go-ole"
+	"github.com/go-ole/go-ole/oleutil"
 	"github.com/rs/cors"
 	"github.com/shirou/gopsutil/cpu"
 	"github.com/shirou/gopsutil/disk"
 	"github.com/shirou/gopsutil/mem"
+	"github.com/shirou/gopsutil/process"
 )
 
 var (
@@ -206,6 +210,102 @@ func getRdpConnectedStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write(jsonResponse)
+}
+
+type ProcessStatusResponse struct {
+	Running bool `json:"running"`
+	RealPath string `json:"realPath"`
+}
+
+// ResolveShortcut returns the target path of a .lnk file
+func ResolveShortcut(lnkPath string) (string, error) {
+	// Initialize COM
+	if err := ole.CoInitializeEx(0, ole.COINIT_APARTMENTTHREADED); err != nil {
+		return "", fmt.Errorf("failed to initialize COM: %w", err)
+	}
+	defer ole.CoUninitialize()
+
+	// Create WScript.Shell object
+	wshell, err := oleutil.CreateObject("WScript.Shell")
+	if err != nil {
+		return "", fmt.Errorf("failed to create WScript.Shell: %w", err)
+	}
+	defer wshell.Release()
+
+	wshellDisp, err := wshell.QueryInterface(ole.IID_IDispatch)
+	if err != nil {
+		return "", fmt.Errorf("failed to query interface: %w", err)
+	}
+	defer wshellDisp.Release()
+
+	// Create shortcut object
+	shortcutDisp, err := oleutil.CallMethod(wshellDisp, "CreateShortcut", lnkPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to create shortcut: %w", err)
+	}
+	shortcut := shortcutDisp.ToIDispatch()
+	defer shortcut.Release()
+
+	// Get TargetPath
+	target, err := oleutil.GetProperty(shortcut, "TargetPath")
+	if err != nil {
+		return "", fmt.Errorf("failed to get TargetPath: %w", err)
+	}
+
+	return target.ToString(), nil
+}
+
+func IsProcessRunningByPath(fullPath string) bool {
+	procs, err := process.Processes()
+	if err != nil {
+		return false
+	}
+
+	for _, p := range procs {
+		exe, err := p.Exe()
+		if err == nil && strings.EqualFold(exe, fullPath) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func getProcessStatus(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Query().Get("path")
+	if path == "" {
+		http.Error(w, "path query param required", http.StatusBadRequest)
+		return
+	}
+
+	envCmdPath := os.ExpandEnv(path)
+
+	var cmdIsRunning bool
+	var realPath string
+
+	// If the path has a lnk suffix, resolve it to the actual path first
+	if strings.HasSuffix(envCmdPath, ".lnk") {
+		exePath, err := ResolveShortcut(envCmdPath)
+		if err == nil {
+			realPath = exePath
+			cmdIsRunning = IsProcessRunningByPath(os.ExpandEnv(exePath))
+		} else {
+			realPath = envCmdPath
+			cmdIsRunning = IsProcessRunningByPath(envCmdPath)
+		}
+	} else {
+		realPath = envCmdPath
+		cmdIsRunning = IsProcessRunningByPath(envCmdPath)
+	}
+
+	response := ProcessStatusResponse{
+		Running: cmdIsRunning,
+		RealPath: realPath,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(response)
 }
 
 func applyUpdate(w http.ResponseWriter, r *http.Request) {
@@ -402,6 +502,7 @@ func main() {
 	r.HandleFunc("/balloon/status", getBalloonStatus).Methods("GET")
 	r.HandleFunc("/balloon/install", installBalloon).Methods("POST")
 	r.HandleFunc("/rdp/status", getRdpConnectedStatus).Methods("GET")
+	r.HandleFunc("/process/status", getProcessStatus).Methods("GET")
 	r.HandleFunc("/update", applyUpdate).Methods("POST")
 	r.HandleFunc("/get-icon", getIcon).Methods("POST")
 	r.HandleFunc("/auth/set-hash", setAuthHash).Methods("POST")
