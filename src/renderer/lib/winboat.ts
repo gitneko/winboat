@@ -29,6 +29,7 @@ import { QMPManager } from "./qmp";
 import { ContainerManager, ContainerStatus } from "./containers/container";
 export { ContainerStatus };
 import { CommonPorts, ContainerRuntimes, createContainer, getActiveHostPort } from "./containers/common";
+import { WindowStateManager } from "./WindowStateManager";
 
 const nodeFetch: typeof import("node-fetch").default = require("node-fetch");
 const fs: typeof import("fs") = require("node:fs");
@@ -272,6 +273,8 @@ export class Winboat {
     appMgr: AppManager | null = null;
     qmpMgr: QMPManager | null = null;
     containerMgr: ContainerManager | null = null;
+    portMgr: Ref<PortManager | null> = ref(null);
+    windowStateMgr: WindowStateManager | null = null;
 
     static getInstance() {
         Winboat.instance ??= new Winboat();
@@ -307,6 +310,13 @@ export class Winboat {
         }, 1000);
 
         this.appMgr = new AppManager();
+
+        // Initialize Window State Manager for seamless reconnection
+        this.windowStateMgr = WindowStateManager.getInstance();
+
+        Winboat.instance = this;
+
+        return Winboat.instance;
     }
 
     /**
@@ -317,6 +327,48 @@ export class Winboat {
         const HEALTH_WAIT_MS = 1000;
         const METRICS_WAIT_MS = 1000;
         const RDP_STATUS_WAIT_MS = 1000;
+
+        // *** Port Manager ***
+        // If the container was already running before opening WinBoat, the ports will already be used by the container
+        // So we don't need to remap any ports
+        if (!this.portMgr.value) {
+            const compose = this.parseCompose();
+            const portMgr = await PortManager.parseCompose(compose, {
+                findOpenPorts: false,
+            });
+            try {
+                type DockerPortBindings = Record<string, Array<{ HostIp: string; HostPort: string }> | null>;
+                const { stdout: bindingsJson } = await execAsync(
+                    "docker inspect --format='{{json .NetworkSettings.Ports}}' WinBoat",
+                );
+                const portBindings = JSON.parse((bindingsJson ?? "").trim() || "{}") as DockerPortBindings;
+                let remapped = false;
+
+                for (const [guestDescriptor, hostBindings] of Object.entries(portBindings)) {
+                    if (!hostBindings || hostBindings.length === 0) continue;
+
+                    const [guestPortString] = guestDescriptor.split("/");
+                    const guestPort = Number.parseInt(guestPortString, 10);
+                    if (!Number.isFinite(guestPort)) continue;
+
+                    const mappedHostPort = Number.parseInt(hostBindings[0].HostPort, 10);
+                    if (!Number.isFinite(mappedHostPort)) continue;
+                    if (portMgr.getHostPort(guestPort) === mappedHostPort) continue;
+
+                    await portMgr.setPortMapping(guestPort, mappedHostPort, { findOpenPorts: false });
+                    remapped = true;
+                }
+
+                if (remapped) {
+                    logger.info("Updated port mappings to reflect running container bindings.");
+                }
+            } catch (error) {
+                logger.warn("Failed to inspect running container port mappings; using compose-defined ports.");
+                logger.warn(error);
+            }
+
+            this.portMgr.value = portMgr;
+        }
 
         // *** Health Interval ***
         // Make sure we don't have any existing intervals
@@ -365,9 +417,10 @@ export class Winboat {
                 used: Math.max(metrics.ram.used - balloonSize, 0),
                 total: metrics.ram.total,
                 totalAvailable: metrics.ram.total - balloonSize,
-                percentage: !isNaN(actualBalloon) && actualBalloon > 0 
-                    ? ((metrics.ram.used - balloonSize) / actualBalloon) * 100 
-                    : metrics.ram.percentage,
+                percentage:
+                    !isNaN(actualBalloon) && actualBalloon > 0
+                        ? ((metrics.ram.used - balloonSize) / actualBalloon) * 100
+                        : metrics.ram.percentage,
             };
         }, METRICS_WAIT_MS);
 
@@ -394,6 +447,9 @@ export class Winboat {
                 this.rdpConnected.value = _rdpConnected;
                 logger.info(`RDP connection status changed to ${_rdpConnected ? "connected" : "disconnected"}`);
             }
+
+            // Sync window states with guest (for seamless reconnection)
+            await this.syncWindowStates();
         }, RDP_STATUS_WAIT_MS);
 
         // *** QMP Interval ***
@@ -470,7 +526,7 @@ export class Winboat {
         const metrics = (await res.json()) as Metrics;
         return metrics;
     }
-    
+
     async getActualBalloon() {
         // If experimental feature are enabled fetch balloon size from QMP (if available)
         if (this.#wbConfig?.config.experimentalFeatures) {
@@ -479,7 +535,7 @@ export class Winboat {
                 response = await this.qmpMgr!.executeCommand("query-balloon");
                 assert("result" in response);
                 // @ts-ignore property "result" already exists due to assert
-                return Math.round(response!.return.actual / (1024**2));
+                return Math.round(response!.return.actual / 1024 ** 2);
             } catch (e) {
                 logger.error("There was an error checking for balloon");
                 logger.error(e);
@@ -496,6 +552,72 @@ export class Winboat {
         });
         const status = (await res.json()) as { rdpConnected: boolean };
         return status.rdpConnected;
+    }
+
+    /**
+     * Synchronize window states between guest and host for seamless reconnection
+     * Fetches current windows from Guest Agent and updates WindowStateManager
+     */
+    async syncWindowStates() {
+        if (!this.windowStateMgr || !this.isOnline.value) return;
+
+        try {
+            const apiPort = this.getHostPort(GUEST_API_PORT);
+            const guestWindows = await this.windowStateMgr.fetchGuestWindows(apiPort);
+
+            // Update each tracked window state with guest info
+            for (const guestWindow of guestWindows) {
+                this.windowStateMgr.updateGuestInfo(guestWindow.className, guestWindow);
+            }
+
+            // Check for disconnected windows that need reconnection
+            const disconnectedWindows = this.windowStateMgr.getDisconnectedWindows();
+            if (disconnectedWindows.length > 0) {
+                logger.info(`[Reconnection] Found ${disconnectedWindows.length} disconnected windows`);
+
+                for (const windowState of disconnectedWindows) {
+                    await this.attemptWindowReconnection(windowState);
+                }
+            }
+        } catch (error) {
+            // Silently fail - don't spam logs, this runs every second
+            // logger.error('[Reconnection] Failed to sync window states:', error);
+        }
+    }
+
+    /**
+     * Attempt to reconnect a disconnected RemoteApp window
+     */
+    async attemptWindowReconnection(windowState: any) {
+        try {
+            logger.info(`[Reconnection] Attempting to reconnect: ${windowState.appName}`);
+
+            // Find the app in our cache
+            const app = this.appMgr?.appCache.find(a => a.Name === windowState.appName);
+            if (!app) {
+                logger.warn(`[Reconnection] App not found in cache: ${windowState.appName}`);
+                this.windowStateMgr?.removeWindow(windowState.wmClass);
+                return;
+            }
+
+            // Relaunch the app
+            await this.launchApp(app);
+
+            logger.info(`[Reconnection] Successfully reconnected: ${windowState.appName}`);
+        } catch (error) {
+            logger.error(`[Reconnection] Failed to reconnect ${windowState.appName}:`, error);
+
+            // Mark as failed attempt
+            if (this.windowStateMgr) {
+                const state = this.windowStateMgr.getState(windowState.wmClass);
+                if (state && state.reconnectAttempts >= state.maxReconnectAttempts) {
+                    logger.warn(
+                        `[Reconnection] Max reconnect attempts reached for ${windowState.appName}, removing from tracking`,
+                    );
+                    this.windowStateMgr.removeWindow(windowState.wmClass);
+                }
+            }
+        }
     }
 
     static readCompose(composePath: string): ComposeConfig {
@@ -768,7 +890,7 @@ export class Winboat {
 
         recentApps.unshift({
             name: app.Name,
-            timestamp: Date.now()
+            timestamp: Date.now(),
         });
 
         // Keep only last 15 apps
@@ -841,6 +963,14 @@ export class Winboat {
             const safeToLogArgs = freeRDPInstallation.stringifyExec(args).replace(/\/p:[^ ]+/g, "/p:********");
             logger.info(`Launch FreeRDP with command:\n${safeToLogArgs}`);
             await freeRDPInstallation.exec(args);
+
+            // Extract PID from the spawned process (FreeRDP runs in background with &)
+            // Since we use & in the command, we need to track it differently
+            // For now, register with null PID - we'll enhance this with proper process tracking
+            const wmClass = `winboat-${cleanAppName}`;
+            this.windowStateMgr?.registerApp(cleanAppName, app.Path, null as any);
+
+            logger.info(`[Reconnection] Registered app ${cleanAppName} with wmClass: ${wmClass}`);
         } catch (e) {
             const execError = e as ExecFileAsyncError;
             const ERRINFO_RPC_INITIATED_DISCONNECT = 0x00000001;
@@ -925,19 +1055,19 @@ export class Winboat {
     }
 
     async checkBallooningService() {
-        // Check if ballooning service is installed in the Windows vm (automatically installed by newer 
+        // Check if ballooning service is installed in the Windows vm (automatically installed by newer
         // version of dockurr/windows image), and  install it if missing.
         try {
             const statusRes = await nodeFetch(`${this.apiUrl}/balloon/status`);
             const status = (await statusRes.json()) as { status: string; details: string };
-            
+
             if (status.status === "not-installed") {
                 logger.info("Balloon service not installed, installing...");
-                const installRes = await nodeFetch(`${this.apiUrl}/balloon/install`, { 
-                    method: "POST"
+                const installRes = await nodeFetch(`${this.apiUrl}/balloon/install`, {
+                    method: "POST",
                 });
                 const installResult = (await installRes.json()) as { result: string; details: string };
-                
+
                 if (installResult.result === "success") {
                     logger.info("Balloon service installed successfully");
                 } else {

@@ -41,6 +41,8 @@
         "@vueuse/core": "^14.2.0",
         "@vueuse/motion": "^3.0.3",
         "apexcharts": "^5.3.6",
+        "argon2": "^0.44.0",
+        "axios": "^1.12.2",
         "check-disk-space": "^3.4.0",
         "consola": "^3.4.2",
         "electron-store": "^11.0.2",

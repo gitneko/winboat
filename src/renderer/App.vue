@@ -1,5 +1,5 @@
 <template>
-    <main 
+    <main
         class="overflow-hidden relative w-screen h-screen"
         :class="{ animationsDisabled: 'disable-animations' }"
     >
@@ -160,6 +160,8 @@
             :current-step="launchState.state.value.currentStep || undefined"
             @cancel="launchState.cancelLaunch()"
         />
+        <!-- Reconnection Overlay -->
+        <ReconnectionOverlay />
     </main>
 </template>
 
@@ -186,6 +188,11 @@ const { BrowserWindow }: typeof import("@electron/remote") = require("@electron/
 const os: typeof import("os") = require("node:os");
 
 const launchState = useShortcutLaunchState();
+
+import { GUEST_NOVNC_PORT } from "./lib/constants";
+import ReconnectionOverlay from "./components/ReconnectionOverlay.vue";
+const path: typeof import("path") = require("path");
+const remote: typeof import("@electron/remote") = require("@electron/remote");
 
 const $router = useRouter();
 const $route = useRoute();
