@@ -378,7 +378,7 @@ export class Winboat {
             this.#healthInterval = null;
         }
 
-        this.#healthInterval = setInterval(async () => {
+        const healthFun = async () => {
             const _isOnline = await this.getHealth();
             if (_isOnline !== this.isOnline.value) {
                 this.isOnline.value = _isOnline;
@@ -393,7 +393,9 @@ export class Winboat {
                     }
                 }
             }
-        }, HEALTH_WAIT_MS);
+        };
+        setTimeout(healthFun, 1000); // Fire for the first time sooner
+        this.#healthInterval = setInterval(healthFun, HEALTH_WAIT_MS);
 
         // *** Metrics Interval ***
         // Make sure we don't have any existing intervals
