@@ -22,8 +22,8 @@ jobs:
     build:
         runs-on: ${{ matrix.os }}
         strategy:
-          matrix:
-            os: [ubuntu-22.04, ubuntu-22.04-arm]
+            matrix:
+                os: [ubuntu-22.04, ubuntu-22.04-arm]
         if: >-
             (github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')) ||
             (github.event_name == 'workflow_dispatch' && github.event.inputs.build_type != 'guest-server-only')
@@ -61,7 +61,7 @@ jobs:
                   go-version: "stable"
                   cache-dependency-path: "guest_server/go.sum"
             - name: Install dependencies
-              run: bun ci
+              run: bun install
             - name: Build guest server and app
               run: bun run build:linux-gs
               env:
@@ -97,43 +97,43 @@ jobs:
                   # Turn nullglob back off to keep the environment clean
                   shopt -u nullglob
             - name: Upload AppImage
-              uses: actions/upload-artifact@v7
+              uses: actions/upload-artifact@v4
               with:
                   name: ${{ steps.meta.outputs.NAME }}-${{ steps.meta.outputs.VERSION }}-${{ steps.meta.outputs.ARCH }}.appimage
                   path: dist/*.AppImage
                   if-no-files-found: ignore
             - name: Upload DEB
-              uses: actions/upload-artifact@v7
+              uses: actions/upload-artifact@v4
               with:
                   name: ${{ steps.meta.outputs.NAME }}-${{ steps.meta.outputs.VERSION }}-${{ steps.meta.outputs.ARCH }}.deb
                   path: dist/*.deb
                   if-no-files-found: ignore
             - name: Upload RPM
-              uses: actions/upload-artifact@v7
+              uses: actions/upload-artifact@v4
               with:
                   name: ${{ steps.meta.outputs.NAME }}-${{ steps.meta.outputs.VERSION }}-${{ steps.meta.outputs.ARCH }}.rpm
                   path: dist/*.rpm
                   if-no-files-found: ignore
             - name: Upload TAR.BZ2
-              uses: actions/upload-artifact@v7
+              uses: actions/upload-artifact@v4
               with:
                   name: ${{ steps.meta.outputs.NAME }}-${{ steps.meta.outputs.VERSION }}-${{ steps.meta.outputs.ARCH }}.tar.bz2
                   path: dist/*.tar.bz2
                   if-no-files-found: ignore
             - name: Upload unpacked directory
-              uses: actions/upload-artifact@v7
+              uses: actions/upload-artifact@v4
               with:
                   name: ${{ steps.meta.outputs.NAME }}-${{ steps.meta.outputs.VERSION }}-${{ steps.meta.outputs.ARCH }}-unpacked.zip
                   path: dist/linux-unpacked/**
                   if-no-files-found: ignore
             - name: Upload guest server zip
-              uses: actions/upload-artifact@v7
+              uses: actions/upload-artifact@v4
               with:
                   name: ${{ steps.meta.outputs.NAME }}-${{ steps.meta.outputs.VERSION }}-${{ steps.meta.outputs.ARCH }}-guest_server.zip
                   path: dist/linux-unpacked/resources/guest_server/winboat_guest_server.zip
                   if-no-files-found: ignore
             # - name: Upload metadata
-            #   uses: actions/upload-artifact@v7
+            #   uses: actions/upload-artifact@v4
             #   with:
             #     name: ${{ steps.meta.outputs.NAME }}-${{ steps.meta.outputs.VERSION }}-${{ steps.meta.outputs.ARCH }}-metadata
             #     path: |
@@ -157,7 +157,7 @@ jobs:
             - name: Build guest server only
               run: bash build-guest-server.sh
             - name: Upload guest server artifacts
-              uses: actions/upload-artifact@v7
+              uses: actions/upload-artifact@v4
               with:
                   name: guest-server-artifacts
                   path: guest_server/
