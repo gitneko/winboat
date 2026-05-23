@@ -516,7 +516,7 @@
                 <ConfigCard
                     icon="uil:apps"
                     title="Application Scaling"
-                    desc="Controls how large the application scaling is.."
+                    desc="Controls how large the application scaling is."
                     type="number"
                     :step="10"
                     :min="100"
