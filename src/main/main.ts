@@ -9,6 +9,23 @@ import Store from "electron-store";
 
 initialize();
 
+// Silence expected AbortError / TimeoutError from fetch timeouts
+// (these are intentional cancellations, not real failures)
+process.addListener("unhandledrejection", event => {
+    const reason = event.reason;
+
+    if (reason && (reason.name === "AbortError" || reason.name === "TimeoutError")) {
+        // Completely silence these in the console
+        event.preventDefault();
+        // Optional: keep a very quiet debug log if you ever need to investigate
+        // console.debug('[WinBoat] Fetch aborted (timeout/cancelled):', reason.message || reason);
+        return;
+    }
+
+    // Let all other real errors still show up (recommended)
+    console.error("Unhandled promise rejection:", reason);
+});
+
 // Window Constants
 const WINDOW_MIN_WIDTH = 1280;
 const WINDOW_MIN_HEIGHT = 800;
