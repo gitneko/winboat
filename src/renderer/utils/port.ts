@@ -6,6 +6,9 @@ const { createServer, isIPv4, isIPv6 }: typeof import("net") = require("node:net
 
 const logger = createLogger(path.join(WINBOAT_DIR, "ports.log"));
 
+// Here, undefined denotes the absence of a protocol from the port entry.
+type PortEntryProtocol = "tcp" | "udp" | undefined;
+
 enum PortType {
     HOST = "Host",
     CONTAINER = "Container",
