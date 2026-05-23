@@ -77,7 +77,7 @@ async function launchAppWithContainerHandling(
         console.log("Waiting for Winboat to be online...");
         launchState.updateStep("waiting-online");
         let attempts = 0;
-        const maxAttempts = 120;
+        const maxAttempts = 300;
         while (!winboat.isOnline.value && attempts < maxAttempts) {
             await new Promise(resolve => setTimeout(resolve, 1000));
             attempts++;
