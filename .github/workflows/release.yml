@@ -61,7 +61,7 @@ jobs:
                   go-version: "stable"
                   cache-dependency-path: "guest_server/go.sum"
             - name: Install dependencies
-              run: bun install
+              run: bun ci
             - name: Build guest server and app
               run: bun run build:linux-gs
               env:
