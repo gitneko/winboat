@@ -23,6 +23,23 @@ const process: typeof import("process") = require("node:process");
  */
 process.env.PATH && (process.env.PATH += `:${DEFAULT_HOMEBREW_DIR}`);
 
+// Silence expected AbortError / TimeoutError from fetch timeouts
+// (these are intentional cancellations, not real failures)
+process.addListener("unhandledrejection", event => {
+    const reason = event.reason;
+
+    if (reason && (reason.name === "AbortError" || reason.name === "TimeoutError")) {
+        // Completely silence these in the console
+        event.preventDefault();
+        // Optional: keep a very quiet debug log if you ever need to investigate
+        // console.debug('[WinBoat] Fetch aborted (timeout/cancelled):', reason.message || reason);
+        return;
+    }
+
+    // Let all other real errors still show up (recommended)
+    console.error("Unhandled promise rejection:", reason);
+});
+
 createApp(App)
     .directive("auto-scroll", autoScroll)
     .use(router)

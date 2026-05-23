@@ -1,8 +1,5 @@
 <template>
-    <main
-        class="overflow-hidden relative w-screen h-screen"
-        :class="{ animationsDisabled: 'disable-animations' }"
-    >
+    <main class="overflow-hidden relative w-screen h-screen" :class="{ animationsDisabled: 'disable-animations' }">
         <!-- Decoration -->
         <div
             class="gradient-ball absolute -z-10 left-0 bottom-0 translate-x-[-50%] translate-y-[50%] w-[90vw] aspect-square opacity-15"
@@ -123,7 +120,7 @@
                     :key="route.path"
                 >
                     <x-navitem>
-                        <Icon class="mr-4 w-5 h-5" :icon="(route.meta!.icon as string)" />
+                        <Icon class="mr-4 w-5 h-5" :icon="route.meta!.icon as string" />
                         <x-label>{{ route.name }}</x-label>
                     </x-navitem>
                 </RouterLink>
@@ -178,7 +175,10 @@ import { USBManager } from "./lib/usbmanager";
 
 import { NOVNC_URL, GUEST_NOVNC_PORT } from "./lib/constants";
 import { performAutoMigrations } from "./lib/migrate";
-const { BrowserWindow, ipcRenderer }: typeof import("@electron/remote") & { ipcRenderer: any } = require("@electron/remote");
+const {
+    BrowserWindow,
+    ipcRenderer,
+}: typeof import("@electron/remote") & { ipcRenderer: any } = require("@electron/remote");
 const { ipcRenderer: electronIpcRenderer } = require("electron");
 
 import { setIntervalImmediately } from "./utils/interval";
@@ -207,6 +207,23 @@ const MANUAL_UPDATE_TIMEOUT = 60000; // 60 seconds
 const updateDialog = useTemplateRef("updateDialog");
 
 const animationsDisabled = computed(() => wbConfig?.config.disableAnimations);
+
+// Silence expected AbortError / TimeoutError from fetch timeouts
+// (these are intentional cancellations, not real failures)
+window.addEventListener("unhandledrejection", event => {
+    const reason = event.reason;
+
+    if (reason && (reason.name === "AbortError" || reason.name === "TimeoutError")) {
+        // Completely silence these in the console
+        event.preventDefault();
+        // Optional: keep a very quiet debug log if you ever need to investigate
+        // console.debug('[WinBoat] Fetch aborted (timeout/cancelled):', reason.message || reason);
+        return;
+    }
+
+    // Let all other real errors still show up (recommended)
+    console.error("Unhandled promise rejection:", reason);
+});
 
 onMounted(async () => {
     const winboatInstalled = await isInstalled();
