@@ -99,7 +99,7 @@ function updateTrayMenu() {
         {
             label: "Open Configuration",
             click: () => {
-                mainWindow?.webContents.send("navigate", "/config");
+                mainWindow?.webContents.send("navigate", "/configuration");
                 mainWindow?.show();
             },
         },
@@ -211,8 +211,8 @@ function createWindow() {
     enable(mainWindow.webContents);
 
     // add listener for when the renderer has finished loading
-    mainWindow.webContents.once('did-finish-load', () => {
-        console.log('Renderer loaded successfully');
+    mainWindow.webContents.once("did-finish-load", () => {
+        console.log("Renderer loaded successfully");
     });
 
     if (process.env.NODE_ENV === "development") {
