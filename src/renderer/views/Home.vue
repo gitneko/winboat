@@ -202,9 +202,18 @@ const compose = ref<ComposeConfig | null>(null);
 const wallpaper = ref("");
 const { ipcRenderer } = require("electron");
 
-watch(winboat.containerStatus, newStatus => {
-    ipcRenderer.send("container-status", newStatus.toLowerCase());
-});
+// Dont use watch and instead monitor container status manually,
+// because when the container gets recreated, we're stuck at stopped state
+// instead of changing to running - once you pause and run the container again,
+// only then the status also changes to running,
+// so we manually periodically compare it and update the status
+let previousContainerStatus: string = "";
+setInterval(() => {
+    if (winboat.containerStatus.value !== previousContainerStatus) {
+        previousContainerStatus = winboat.containerStatus.value;
+        ipcRenderer.send("container-status", previousContainerStatus.toLowerCase());
+    }
+}, 1000);
 
 onMounted(async () => {
     compose.value = Winboat.readCompose(winboat.containerMgr!.composeFilePath);

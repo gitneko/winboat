@@ -46,20 +46,20 @@ export class WinboatVersion {
 }
 
 type WinboatVersionData = {
-    previous: WinboatVersion,
-    current: WinboatVersion
-}
+    previous: WinboatVersion;
+    current: WinboatVersion;
+};
 
 export enum MultiMonitorMode {
     None = "None",
     MultiMon = "MultiMon",
-    Span = "Span"
-};
+    Span = "Span",
+}
 
 export type WinboatConfigObj = {
     scale: number;
     scaleDesktop: number;
-    desktopSize: string,
+    desktopSize: string;
     smartcardEnabled: boolean;
     rdpMonitoringEnabled: boolean;
     passedThroughDevices: PTSerializableDeviceInfo[];
@@ -68,6 +68,7 @@ export type WinboatConfigObj = {
     advancedFeatures: boolean;
     multiMonitor: MultiMonitorMode;
     rdpArgs: RdpArg[];
+    openToLan: boolean;
     disableAnimations: boolean;
     desktopShortcuts: string[]; // Array of app names that have desktop shortcuts
     winboatExecutablePath?: string; // Custom path to WinBoat executable (for desktop shortcuts)
@@ -76,7 +77,7 @@ export type WinboatConfigObj = {
     versionData: WinboatVersionData;
     appsSortOrder: string;
     favoriteApps: string[];
-    recentApps: Array<{ name: string, timestamp: number }>;
+    recentApps: Array<{ name: string; timestamp: number }>;
 };
 
 const currentVersion = new WinboatVersion(import.meta.env.VITE_APP_VERSION);
@@ -93,6 +94,7 @@ const defaultConfig: WinboatConfigObj = {
     advancedFeatures: false,
     multiMonitor: MultiMonitorMode.None,
     rdpArgs: [],
+    openToLan: false,
     disableAnimations: false,
     desktopShortcuts: [],
     winboatExecutablePath: undefined,
@@ -101,9 +103,9 @@ const defaultConfig: WinboatConfigObj = {
     customVolumeMounts: [],
     versionData: {
         previous: currentVersion, // As of 0.9.0 this won't exist on the filesystem, so we just set it to the current version
-        current: currentVersion
+        current: currentVersion,
     },
-    appsSortOrder: 'name',
+    appsSortOrder: "name",
     favoriteApps: [],
     recentApps: [],
 };
@@ -128,7 +130,9 @@ export class WinboatConfig {
             this.config.versionData.previous = this.config.versionData.current;
             this.config.versionData.current = currentVersion;
 
-            logger.info(`Updated version data from '${this.config.versionData.previous.toString()}' to '${currentVersion.toString()}'`);
+            logger.info(
+                `Updated version data from '${this.config.versionData.previous.toString()}' to '${currentVersion.toString()}'`,
+            );
         }
 
         console.log("Reading current config", this.configData);
@@ -194,8 +198,9 @@ export class WinboatConfig {
                     configObj[key] = defaultConfig[key];
                     configModified = true;
                     console.log(
-                        `Added missing config key: ${key} with default value: ${JSON.stringify(defaultConfig[key as keyof WinboatConfigObj])
-                        }`,
+                        `Added missing config key: ${key} with default value: ${JSON.stringify(
+                            defaultConfig[key as keyof WinboatConfigObj],
+                        )}`,
                     );
                 }
             }
@@ -203,10 +208,12 @@ export class WinboatConfig {
             // Migrate old customVolumeMounts format (containerPath -> shareName)
             if (configObj.customVolumeMounts) {
                 configObj.customVolumeMounts = configObj.customVolumeMounts.map((mount: any) => {
-                    if ('containerPath' in mount && !('shareName' in mount)) {
+                    if ("containerPath" in mount && !("shareName" in mount)) {
                         // Extract share name from containerPath (e.g., "/gamez" -> "gamez")
-                        const shareName = mount.containerPath.replace(/^\//, '').replace(/[^a-zA-Z0-9_-]/g, '');
-                        console.log(`Migrated volume mount containerPath '${mount.containerPath}' to shareName '${shareName}'`);
+                        const shareName = mount.containerPath.replace(/^\//, "").replace(/[^a-zA-Z0-9_-]/g, "");
+                        console.log(
+                            `Migrated volume mount containerPath '${mount.containerPath}' to shareName '${shareName}'`,
+                        );
                         configModified = true;
                         return { hostPath: mount.hostPath, shareName, enabled: mount.enabled };
                     }
