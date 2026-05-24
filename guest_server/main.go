@@ -498,6 +498,27 @@ func main() {
 		}
 	}
 
+	// Optimize PowerShell assemblies at startup,
+	// because that leads to a huge performance improvement
+	cmd := exec.Command("powershell", "-ExecutionPolicy", "Bypass", "-File", "scripts\\optimize-ps.ps1")
+	errOptimizePS := cmd.Start()
+	if errOptimizePS == nil {
+		log.Println("Started optimizing PowerShell in the background")
+
+	  	// use goroutine waiting, manage process
+	    // this is important, otherwise the process becomes in S mode
+	    go func() {
+	        err = cmd.Wait()
+			if err == nil {
+				log.Println("Optimizing PowerShell finished successfully")
+			} else {
+		        log.Println("Optimizing PowerShell failed: ", err)
+			}
+	    }()
+	} else {
+		log.Println("Starting PowerShell optimization failed: ", errOptimizePS)
+	}
+
 	// Setup routes
 	r := mux.NewRouter()
 	r.HandleFunc("/apps", getApps).Methods("GET")
