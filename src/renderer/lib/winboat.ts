@@ -913,7 +913,7 @@ export class Winboat {
         try {
             // Remove plain password from logs
             logger.info(
-                `Launch FreeRDP with command:\n${freeRDPInstallation.stringifyExec(args.map(s => s.replaceAll(password, "*****")))}`,
+                `Launch FreeRDP with command:\n${freeRDPInstallation.stringifyExec(args).replaceAll(password, "*****")}`,
             );
             await freeRDPInstallation.exec(args);
 
