@@ -696,10 +696,12 @@ async function handleAppLaunch(app: WinApp) {
     });
 
     // For UWP apps (launched via explorer.exe), we can't detect the actual process
+    // Apps launched via explorer.exe, i.e. settings (ms-settings:), we also can't detect the acutal process
     // For non-.exe files (.msc, etc.), they're opened by other host processes
     // We hope that .lnk files are pointing to .exe files, otherwise we'll be stuck for 10s
-    const isUwpApp = app.Source === "uwp";
     const appPath = app.Path.toLowerCase();
+    const isUwpApp =
+        app.Source === "uwp" || (app.Source === "internal" && appPath.endsWith("\\explorer.exe") && app.Args !== "");
     const isExecutable = appPath.endsWith(".exe") || appPath.endsWith(".lnk");
 
     if (isUwpApp || !isExecutable) {
