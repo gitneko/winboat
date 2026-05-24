@@ -172,6 +172,23 @@
                         <x-label v-if="Number.isNaN(freerdpPort)">None</x-label>
                     </x-input>
                 </ConfigCard>
+
+                <!-- Open to LAN -->
+                <ConfigCard
+                    icon="mdi:lan"
+                    title="Open to LAN"
+                    desc="If enabled, WinBoat RDP port is exposed on your local network (binds to 0.0.0.0) - this is a security risk"
+                    type="switch"
+                    :disabled="isContainerRunning"
+                    v-model:value="openToLan"
+                    @toggle="
+                        (_: any) => {
+                            openToLan = !openToLan;
+                            wbConfig.config.openToLan = openToLan;
+                        }
+                    "
+                />
+
                 <div class="flex flex-col">
                     <p class="my-0 text-yellow-500" v-for="(warning, k) of warnings" :key="`warning-${k}`">
                         ⚠ {{ warning }}
@@ -834,6 +851,10 @@ const sharedFolderPath = ref("");
 const origSharedFolderPath = ref("");
 const origAutoStartContainer = ref(false);
 const autoStartContainer = ref(false);
+const freerdpPort = ref(0);
+const origFreerdpPort = ref(0);
+const openToLan = ref(false);
+const origOpenToLan = ref(false);
 const isApplyingChanges = ref(false);
 const resetQuestionCounter = ref(0);
 const isResettingWinboat = ref(false);
@@ -1013,6 +1034,9 @@ async function assignValues() {
     freerdpPort.value = (portMapper.value.getShortPortMapping(GUEST_RDP_PORT)?.host as number) ?? GUEST_RDP_PORT;
     origFreerdpPort.value = freerdpPort.value;
 
+    openToLan.value = wbConfig.config.openToLan;
+    origOpenToLan.value = openToLan.value;
+
     customVolumeMounts.value = [...wbConfig.config.customVolumeMounts];
     origCustomVolumeMounts.value = [...wbConfig.config.customVolumeMounts];
 
@@ -1057,15 +1081,9 @@ async function saveCompose() {
     applyCustomMounts(compose.value!, customVolumeMounts.value);
     wbConfig.config.customVolumeMounts = [...customVolumeMounts.value];
 
-    portMapper.value!.setShortPortMapping(GUEST_RDP_PORT, freerdpPort.value, {
-        protocol: "tcp",
-        hostIP: "127.0.0.1",
-    });
-
-    portMapper.value!.setShortPortMapping(GUEST_RDP_PORT, freerdpPort.value, {
-        protocol: "udp",
-        hostIP: "127.0.0.1",
-    });
+    const bindOpts = (protocol: "tcp" | "udp") => (openToLan.value ? { protocol } : { protocol, hostIP: "127.0.0.1" });
+    portMapper.value!.setShortPortMapping(GUEST_RDP_PORT, freerdpPort.value, bindOpts("tcp"));
+    portMapper.value!.setShortPortMapping(GUEST_RDP_PORT, freerdpPort.value, bindOpts("udp"));
 
     compose.value!.services.windows.ports = portMapper.value!.composeFormat;
 
@@ -1115,6 +1133,19 @@ async function addRequiredComposeFieldsUSB() {
     }
     if (!hasQmpPort()) {
         compose.value!.services.windows.ports.push(QMP_PORT_MAPPING);
+
+        const composePorts = winboat.containerMgr!.defaultCompose.services.windows.ports;
+        const portEntries = composePorts.filter(x => typeof x === "string").map(x => new ComposePortEntry(x));
+        const QMPPredicate = (entry: ComposePortEntry) =>
+            (entry.host instanceof Range || Number.isNaN(entry.host)) && // We allow NaN in case the QMP port entry isn't already there on podman for whatever reason
+            typeof entry.container === "number" &&
+            entry.container === GUEST_QMP_PORT;
+        const QMPPort = portEntries.find(QMPPredicate)!.host;
+
+        const qmpBindOpts = openToLan.value
+            ? { protocol: "tcp" as const }
+            : { protocol: "tcp" as const, hostIP: "127.0.0.1" };
+        portMapper.value!.setShortPortMapping(GUEST_QMP_PORT, QMPPort, qmpBindOpts);
     }
 
     if (!compose.value!.services.windows.environment.ARGUMENTS) {
@@ -1201,6 +1232,7 @@ const saveButtonDisabled = computed(() => {
         origNumCores.value !== numCores.value ||
         origRamGB.value !== ramGB.value ||
         origMemoryBallooning.value !== memoryBallooning.value ||
+        openToLan.value !== origOpenToLan.value ||
         shareFolder.value !== origShareFolder.value ||
         sharedFolderPath.value !== origSharedFolderPath.value ||
         (!Number.isNaN(freerdpPort.value) && freerdpPort.value !== origFreerdpPort.value) ||
