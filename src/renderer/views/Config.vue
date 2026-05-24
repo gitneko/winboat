@@ -553,6 +553,36 @@
                     type="switch"
                     v-model:value="wbConfig.config.rdpMonitoringEnabled"
                 />
+
+                <!-- Shutdown or pause container if RDP not connected -->
+                <ConfigCard
+                    v-show="wbConfig.config.rdpMonitoringEnabled"
+                    icon="fluent:power-20-filled"
+                    title="Shutdown Timer"
+                    desc="If enabled, the Windows VM will shutdown if there hasn't been an RDP session within a set amount of time"
+                    type="switch"
+                    v-model:value="wbConfig.config.shutdownTimer"
+                />
+                <ConfigCard
+                    v-show="wbConfig.config.rdpMonitoringEnabled"
+                    icon="fluent:pause-16-filled"
+                    title="Pause instead of Shutdown"
+                    desc="If enabled, the Windows VM will be paused instead of shutdown"
+                    type="switch"
+                    v-model:value="wbConfig.config.shutdownOrPause"
+                />
+                <ConfigCard
+                    v-show="wbConfig.config.rdpMonitoringEnabled"
+                    icon="fluent:hourglass-three-quarter-16-regular"
+                    title="Shutdown Timer"
+                    desc="The length of inactivity before shutting down the VM"
+                    type="number"
+                    unit="Minutes"
+                    :min="1"
+                    :max="9999999"
+                    :value="shutdownTimerLength / 60000"
+                    @input="(e: any) => updateShutdownTimerLength(e.target.value * 60000)"
+                />
             </div>
         </div>
 
@@ -813,9 +843,18 @@ const isApplyingChanges = ref(false);
 const resetQuestionCounter = ref(0);
 const isResettingWinboat = ref(false);
 const isUpdatingUSBPrerequisites = ref(false);
+const shutdownTimerLength = ref(0);
 
 const customVolumeMounts = ref<CustomVolumeMount[]>([]);
 const origCustomVolumeMounts = ref<CustomVolumeMount[]>([]);
+
+function updateShutdownTimerLength(value: string | number) {
+    let val = typeof value === "string" ? parseInt(value) : value;
+    val = val >= 60000 ? val : 60000;
+
+    wbConfig.config.shutdownTimerLength = val;
+    shutdownTimerLength.value = val;
+}
 
 // For Backup & Restore
 const isBackingUp = ref(false);
@@ -1003,6 +1042,8 @@ async function assignValues() {
     const specs = await getSpecs();
     maxRamGB.value = specs.ramGB;
     maxNumCores.value = specs.cpuCores;
+
+    shutdownTimerLength.value = wbConfig.config.shutdownTimerLength;
 
     refreshAvailableDevices();
 }

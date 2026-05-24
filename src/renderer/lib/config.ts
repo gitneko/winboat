@@ -62,6 +62,9 @@ export type WinboatConfigObj = {
     desktopSize: string;
     smartcardEnabled: boolean;
     rdpMonitoringEnabled: boolean;
+    shutdownTimer: boolean;
+    shutdownOrPause: boolean;
+    shutdownTimerLength: number;
     passedThroughDevices: PTSerializableDeviceInfo[];
     customApps: WinApp[];
     experimentalFeatures: boolean;
@@ -88,6 +91,9 @@ const defaultConfig: WinboatConfigObj = {
     desktopSize: "fullscreen",
     smartcardEnabled: false,
     rdpMonitoringEnabled: false,
+    shutdownTimer: false,
+    shutdownOrPause: false,
+    shutdownTimerLength: 600000,
     passedThroughDevices: [],
     customApps: [],
     experimentalFeatures: false,

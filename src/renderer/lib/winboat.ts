@@ -239,6 +239,7 @@ export class Winboat {
     #metricsInverval: NodeJS.Timeout | null = null;
     #rdpConnectionStatusInterval: NodeJS.Timeout | null = null;
     #qmpInterval: NodeJS.Timeout | null = null;
+    #shutdownTimer: NodeJS.Timeout | null = null;
 
     // Variables
     isOnline: Ref<boolean> = ref(false);
@@ -322,7 +323,7 @@ export class Winboat {
         logger.info("Creating Winboat API intervals...");
         const HEALTH_WAIT_MS = 5000; // 1000ms is too disruptive (the API might come up and go in a loop)
         const METRICS_WAIT_MS = 1000;
-        const RDP_STATUS_WAIT_MS = 1000;
+        const RDP_STATUS_WAIT_MS = 5000; // 1000ms is just too fast, every 5s is enough
 
         // *** Port Manager ***
         // If the container was already running before opening WinBoat, the ports will already be used by the container
@@ -444,6 +445,34 @@ export class Winboat {
             if (_rdpConnected !== this.rdpConnected.value) {
                 this.rdpConnected.value = _rdpConnected;
                 logger.info(`RDP connection status changed to ${_rdpConnected ? "connected" : "disconnected"}`);
+            }
+
+            if (this.#wbConfig.config.shutdownTimer) {
+                if (!_rdpConnected) {
+                    if (!this.#shutdownTimer) {
+                        logger.info(
+                            `RDP disconnected - starting shutdown timer of ${this.#wbConfig.config.shutdownTimerLength / 60_000}mins`,
+                        );
+
+                        this.#shutdownTimer = setTimeout(async () => {
+                            if (!this.#wbConfig || !this.#wbConfig.config.shutdownTimer) {
+                                return;
+                            }
+
+                            if (this.#wbConfig.config.shutdownOrPause) {
+                                logger.info("RDP still disconnected, pausing container");
+                                await this.pauseContainer();
+                            } else {
+                                logger.info("RDP still disconnected, shutting down container");
+                                await this.stopContainer();
+                            }
+                        }, this.#wbConfig.config.shutdownTimerLength);
+                    }
+                } else if (this.#shutdownTimer) {
+                    clearTimeout(this.#shutdownTimer);
+                    this.#shutdownTimer = null;
+                    logger.info("RDP reconnected - shutdown has been cancelled");
+                }
             }
 
             // Sync window states with guest (for seamless reconnection)
