@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -217,6 +218,25 @@ type ProcessStatusResponse struct {
 	RealPath string `json:"realPath"`
 }
 
+// ExpandWindowsEnv replaces %VAR% style environment variables.
+// Example: "%WINDIR%\\System32" → "C:\\Windows\\System32"
+func ExpandWindowsEnv(s string) string {
+	re := regexp.MustCompile(`%([^%]+)%`)
+
+	return re.ReplaceAllStringFunc(s, func(match string) string {
+		// Extract variable name (remove the % signs)
+		varName := match[1 : len(match)-1]
+
+		// Look up the variable (case-insensitive on Windows)
+		if value, ok := os.LookupEnv(varName); ok {
+			return value
+		}
+
+		// Keep original if variable is not found
+		return match
+	})
+}
+
 // ResolveShortcut returns the target path of a .lnk file
 func ResolveShortcut(lnkPath string) (string, error) {
 	// Initialize COM
@@ -278,7 +298,7 @@ func getProcessStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	envCmdPath := os.ExpandEnv(path)
+	envCmdPath := ExpandWindowsEnv(path)
 
 	var cmdIsRunning bool
 	var realPath string
@@ -287,16 +307,15 @@ func getProcessStatus(w http.ResponseWriter, r *http.Request) {
 	if strings.HasSuffix(envCmdPath, ".lnk") {
 		exePath, err := ResolveShortcut(envCmdPath)
 		if err == nil {
-			realPath = exePath
-			cmdIsRunning = IsProcessRunningByPath(os.ExpandEnv(exePath))
+			realPath = ExpandWindowsEnv(exePath)
 		} else {
 			realPath = envCmdPath
-			cmdIsRunning = IsProcessRunningByPath(envCmdPath)
 		}
 	} else {
 		realPath = envCmdPath
-		cmdIsRunning = IsProcessRunningByPath(envCmdPath)
 	}
+
+	cmdIsRunning = IsProcessRunningByPath(realPath)
 
 	response := ProcessStatusResponse{
 		Running: cmdIsRunning,
