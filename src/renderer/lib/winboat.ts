@@ -901,8 +901,6 @@ export class Winboat {
         }
 
         args = args.filter((v, _i, _a) => v.trim() !== "");
-        // Remove plain password from logs
-        cmd = cmd.replaceAll(password, "*****");
 
         this.appMgr?.incrementAppUsage(app);
         this.appMgr?.writeToDisk();
@@ -913,7 +911,10 @@ export class Winboat {
         }
 
         try {
-            logger.info(`Launch FreeRDP with command:\n${freeRDPInstallation.stringifyExec(args)}`);
+            // Remove plain password from logs
+            logger.info(
+                `Launch FreeRDP with command:\n${freeRDPInstallation.stringifyExec(args.map(s => s.replaceAll(password, "*****")))}`,
+            );
             await freeRDPInstallation.exec(args);
 
             // Extract PID from the spawned process (FreeRDP runs in background with &)
