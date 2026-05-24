@@ -207,11 +207,11 @@ const { ipcRenderer } = require("electron");
 // instead of changing to running - once you pause and run the container again,
 // only then the status also changes to running,
 // so we manually periodically compare it and update the status
-let previousContainerStatus: string = "";
+let previousContainerStatus: ContainerStatus = "";
 setInterval(() => {
     if (winboat.containerStatus.value !== previousContainerStatus) {
         previousContainerStatus = winboat.containerStatus.value;
-        ipcRenderer.send("container-status", previousContainerStatus.toLowerCase());
+        ipcRenderer.send("container-status", previousContainerStatus);
     }
 }, 1000);
 
