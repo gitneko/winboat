@@ -7,6 +7,15 @@ import { realpath } from "fs/promises";
 import { initialize, enable } from "@electron/remote/main/index.js";
 import Store from "electron-store";
 
+//import { ContainerStatus } from "../renderer/lib/containers/container.js";
+export enum ContainerStatus {
+    CREATED = "Created", // unused
+    RUNNING = "Running",
+    PAUSED = "Paused",
+    EXITED = "Exited",
+    UNKNOWN = "Unknown",
+}
+
 initialize();
 
 // Silence expected AbortError / TimeoutError from fetch timeouts
@@ -79,7 +88,7 @@ const windowStore = new Store<SchemaType>({
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
-let containerStatus = "exited"; // running | paused | exited
+let containerStatus: ContainerStatus = ContainerStatus.EXITED;
 
 const CONFIG_PATH = join(os.homedir(), ".winboat", "winboat.config.json");
 
@@ -105,10 +114,10 @@ function updateTrayMenu() {
     }));
 
     const containerActions =
-        containerStatus === "exited"
+        containerStatus === ContainerStatus.EXITED
             ? [{ label: "Run Container", click: () => mainWindow?.webContents.send("container-action", "start") }]
             : [
-                  containerStatus === "paused"
+                  containerStatus === ContainerStatus.PAUSED
                       ? {
                             label: "Unpause Container",
                             click: () => mainWindow?.webContents.send("container-action", "unpause"),
