@@ -62,6 +62,14 @@ const presetApps: WinApp[] = [
         Usage: 0,
     },
     {
+        Name: "⚙️ Windows Settings",
+        Icon: AppIcons[InternalApps.WINDOWS_SETTINGS],
+        Source: "internal",
+        Path: "%windir%\\explorer.exe",
+        Args: "ms-settings:",
+        Usage: 0,
+    },
+    {
         Name: "🖥️ Browser Display",
         Icon: AppIcons[InternalApps.NOVNC_BROWSER],
         Source: "internal",
