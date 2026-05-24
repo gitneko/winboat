@@ -555,6 +555,10 @@ export class Winboat {
 
         try {
             const apiPort = this.getHostPort(GUEST_API_PORT);
+            if (!apiPort) {
+                return;
+            }
+
             const guestWindows = await this.windowStateMgr.fetchGuestWindows(apiPort);
 
             // Update each tracked window state with guest info
