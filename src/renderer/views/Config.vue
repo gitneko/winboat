@@ -779,7 +779,7 @@ import { MultiMonitorMode, RdpArg, WinboatConfig } from "../lib/config";
 import { USBManager, type PTSerializableDeviceInfo } from "../lib/usbmanager";
 import { type Device } from "usb";
 import { USB_VID_BLACKLIST, RESTART_ON_FAILURE, RESTART_NO, GUEST_RDP_PORT, GUEST_QMP_PORT } from "../lib/constants";
-import { ComposePortEntry, ComposePortMapper, Range } from "../utils/port";
+import { ComposePortEntry, ComposePortMapper, PortManager, Range } from "../utils/port";
 import CustomVolumeMounts from "../components/CustomVolumeMounts.vue";
 import type { CustomVolumeMount } from "../../types";
 import { applyCustomMounts, getSharedFolderHostPath, isRootSharedFolderMount } from "../lib/volumes";
@@ -1143,7 +1143,12 @@ const errors = computedAsync(async () => {
 
     // @ts-ignore The left-hand side of an 'instanceof' expression must be of type 'any', an object type or a type parameter.
     if (freerdpPort.value instanceof Range) {
-        freerdpPort.value = freerdpPort.value.start;
+        const randomOpenPort = await PortManager.getOpenPortInRange(freerdpPort.value.start, freerdpPort.value.end);
+        if (randomOpenPort) {
+            freerdpPort.value = randomOpenPort;
+        } else {
+            freerdpPort.value = freerdpPort.value.start;
+        }
     }
 
     if (

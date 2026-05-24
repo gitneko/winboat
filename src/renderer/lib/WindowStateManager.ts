@@ -139,7 +139,9 @@ export class WindowStateManager {
                 return [];
             }
 
-            const data = await response.json();
+            // Response body MAY be empty, thus .text()
+            const text = await response.text();
+            const data = JSON.parse(text || "[]");
 
             if (Array.isArray(data)) {
                 return data;
