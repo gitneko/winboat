@@ -186,31 +186,17 @@ func installBalloon(w http.ResponseWriter, r *http.Request) {
 
 func getRdpConnectedStatus(w http.ResponseWriter, r *http.Request) {
 	// Check for RDP Status via quser.exe
-	cmd := exec.Command("quser.exe")
-	output, err := cmd.Output()
-	if err != nil {
-		http.Error(w, "Failed to execute script: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-	// Check if the output contains both "active" and "rdp" todo: Check for VNC Sessions
-	hasRdpSession := strings.Contains(strings.ToLower(string(output)), "active") &&
-		strings.Contains(strings.ToLower(string(output)), "rdp")
+	// But use Powershell for locale-independent processing
+	cmd := exec.Command("powershell", "-NoProfile", "-NoLogo", "-Command", "if(C:\\Windows\\System32\\quser.exe 2>&1 | Select-Object -Skip 1 | ForEach-Object { $_ -replace '\\s{2,}', ',' } | ConvertFrom-Csv -Header 'UserName','SessionName','ID','State','IdleTime','LogonTime' | Where-Object { $_.SessionName -match 'rdp'} | Where-Object { $_.State.startsWith('A') }) {'1'} else {'0'}")
+	output, _ := cmd.Output()
 
 	response := RDPStatusResponse{
-		RdpConnection: hasRdpSession,
-	}
-
-	// Convert the response from guest server to JSON
-	// Expected output { "rdp_connected": "true" } if a session is active
-	jsonResponse, err := json.Marshal(response)
-	if err != nil {
-		http.Error(w, "Failed to marshal JSON response: "+err.Error(), http.StatusInternalServerError)
-		return
+		RdpConnection: strings.TrimSpace(string(output)) == "1",
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write(jsonResponse)
+	json.NewEncoder(w).Encode(response)
 }
 
 type ProcessStatusResponse struct {
