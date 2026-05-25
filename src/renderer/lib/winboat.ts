@@ -566,6 +566,7 @@ export class Winboat {
                 logger.error(`QMP response: ${JSON.stringify(response)}`);
             }
         }
+
         return NaN;
     }
 
@@ -888,7 +889,7 @@ export class Winboat {
             logger.info(`Found custom app command for '${app.Name}'`);
             customAppCallbacks[app.Path]!(this);
             this.appMgr?.incrementAppUsage(app);
-            this.appMgr?.writeToDisk();
+            await this.appMgr?.writeToDisk();
             return;
         }
 
@@ -936,7 +937,7 @@ export class Winboat {
         args = args.filter((v, _i, _a) => v.trim() !== "");
 
         this.appMgr?.incrementAppUsage(app);
-        this.appMgr?.writeToDisk();
+        await this.appMgr?.writeToDisk();
 
         if (!freeRDPInstallation) {
             logger.error("No FreeRDP installation found");

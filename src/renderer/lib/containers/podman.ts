@@ -168,7 +168,8 @@ export class PodmanContainer extends ContainerManager {
             const status = stdout.trim() as keyof typeof statusMap;
             return statusMap[status];
         } catch (e) {
-            containerLogger.error(`Failed to get status of podman container ${e}'`);
+            containerLogger.error(`Failed to get status of podman container`);
+            containerLogger.error(e);
             return ContainerStatus.UNKNOWN;
         }
     }
