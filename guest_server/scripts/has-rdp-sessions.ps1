@@ -37,11 +37,11 @@ using System.Runtime.InteropServices;
 
 public class WTS {
     [DllImport("wtsapi32.dll", SetLastError = true)]
-    public static extern bool WTSEnumerateSessions(IntPtr hServer, int Reserved, int Version, 
+    public static extern bool WTSEnumerateSessions(IntPtr hServer, int Reserved, int Version,
         ref IntPtr ppSessionInfo, ref int pCount);
 
     [DllImport("wtsapi32.dll", SetLastError = true)]
-    public static extern bool WTSQuerySessionInformation(IntPtr hServer, int SessionId, 
+    public static extern bool WTSQuerySessionInformation(IntPtr hServer, int SessionId,
         int WTSInfoClass, out IntPtr ppBuffer, out int pBytesReturned);
 
     [DllImport("wtsapi32.dll")]
@@ -66,10 +66,10 @@ public class WTS {
         Add-Type -TypeDefinition $Signature -ErrorAction Stop
     }
 
-    $hServer = if ($ComputerName -eq $env:COMPUTERNAME) { 
-        [IntPtr]::Zero 
-    } else { 
-        [WTS]::WTSOpenServer($ComputerName) 
+    $hServer = if ($ComputerName -eq $env:COMPUTERNAME) {
+        [IntPtr]::Zero
+    } else {
+        [WTS]::WTSOpenServer($ComputerName)
     }
 
     try {
@@ -78,7 +78,7 @@ public class WTS {
 
         $success = [WTS]::WTSEnumerateSessions($hServer, 0, 1, [ref]$SessionInfoPtr, [ref]$Count)
         if (-not $success) {
-            Write-Error "Konnte Sessions nicht abfragen auf $ComputerName"
+            Write-Error "Unable to iterate sessions on $ComputerName"
             return $false
         }
 
@@ -90,7 +90,7 @@ public class WTS {
 
             # Nur aktive Sessions prüfen (State = 0)
             if ($session.State -eq 0) {
-                
+
                 # Protokoll-Typ abfragen (InfoClass 16)
                 $protoBuffer = [IntPtr]::Zero
                 $protoBytes = 0
