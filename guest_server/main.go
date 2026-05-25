@@ -15,7 +15,9 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
 	"time"
+	"unsafe"
 
 	"github.com/gorilla/mux"
 	"github.com/go-ole/go-ole"
@@ -184,19 +186,90 @@ func installBalloon(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-func getRdpConnectedStatus(w http.ResponseWriter, r *http.Request) {
-	// Check for RDP Status via quser.exe
-	// But use Powershell for processing (we currently just check whether status has a capital A [for Active/Aktiv/Aktif/...])
-	//
-	// An alternative would be using a compiled module for locale independent processing, but it's quite slower at worst case
-	// Though I'm not sure whether that's actually just PowerShell or Golang has its hands in too
-	// cmd := exec.Command("powershell", "-ExecutionPolicy", "Bypass", "-File", "scripts\\has-rdp-sessions-compiled.ps1")
+// Native WTS Win32 API
+var (
+	wtsapi32 = syscall.NewLazyDLL("wtsapi32.dll")
 
-	cmd := exec.Command("powershell", "-NoProfile", "-NoLogo", "-Command", "if(C:\\Windows\\System32\\quser.exe 2>&1 | Select-Object -Skip 1 | ForEach-Object { $_ -replace '\\s{2,}', ',' } | ConvertFrom-Csv -Header 'UserName','SessionName','ID','State','IdleTime','LogonTime' | Where-Object { $_.SessionName -match 'rdp'} | Where-Object { $_.State.startsWith('A') }) {'1'} else {'0'}")
-	output, _ := cmd.Output()
+	procWTSEnumerateSessions       = wtsapi32.NewProc("WTSEnumerateSessionsW")
+	procWTSQuerySessionInformation = wtsapi32.NewProc("WTSQuerySessionInformationW")
+	procWTSFreeMemory              = wtsapi32.NewProc("WTSFreeMemory")
+)
+
+// Correct struct for 64-bit Windows (24 bytes)
+type WTS_SESSION_INFO struct {
+	SessionID      uint32
+	_              [4]byte         // padding for alignment
+	pWinStationName *uint16
+	State          uint32
+	_              [4]byte         // padding
+}
+
+// HasActiveRdpSession checks if there is at least one active RDP session.
+// Returns (true, nil) if found, (false, nil) if not found, or (false, error) on failure.
+func HasActiveRdpSession() (bool, error) {
+	// Only 64-bit platforms supported
+	// 32-bit shouldn't be used anymore in 2026
+	if unsafe.Sizeof(uintptr(0)) != 8 {
+		return false, fmt.Errorf("32-bit systems are not supported")
+	}
+
+	var pSessionInfo uintptr
+	var count uint32
+
+	ret, _, err := procWTSEnumerateSessions.Call(
+		0, 0, 1,
+		uintptr(unsafe.Pointer(&pSessionInfo)),
+		uintptr(unsafe.Pointer(&count)),
+	)
+	if ret == 0 {
+		return false, fmt.Errorf("WTSEnumerateSessions failed: %w", err)
+	}
+	defer procWTSFreeMemory.Call(pSessionInfo)
+
+	size := unsafe.Sizeof(WTS_SESSION_INFO{})
+	ptr := pSessionInfo
+
+	for i := uint32(0); i < count; i++ {
+		session := (*WTS_SESSION_INFO)(unsafe.Pointer(ptr))
+
+		if session.State == 0 { // Active
+			var buffer uintptr
+			var bytesReturned uint32
+
+			ret, _, _ := procWTSQuerySessionInformation.Call(
+				0,
+				uintptr(session.SessionID),
+				16,
+				uintptr(unsafe.Pointer(&buffer)),
+				uintptr(unsafe.Pointer(&bytesReturned)),
+			)
+
+			if ret != 0 {
+				protocol := *(*uint16)(unsafe.Pointer(buffer))
+				procWTSFreeMemory.Call(buffer)
+
+				if protocol == 2 { // RDP
+					return true, nil
+				}
+			} else if buffer != 0 {
+				// Free even if query failed
+				procWTSFreeMemory.Call(buffer)
+			}
+		}
+		ptr += size
+	}
+
+	return false, nil
+}
+
+func getRdpConnectedStatus(w http.ResponseWriter, r *http.Request) {
+	sessions, err := HasActiveRdpSession()
+	if err != nil {
+		log.Println("Checking for active RDP sessions failed: ", err)
+	}
 
 	response := RDPStatusResponse{
-		RdpConnection: strings.TrimSpace(string(output)) == "1",
+		RdpConnection: sessions,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
