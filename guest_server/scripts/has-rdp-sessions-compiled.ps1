@@ -14,16 +14,19 @@
 # If there are any sessions a simple 1 will be printed,
 # otherwise a 0 will be printed.
 
+# Use path where the script resides (scripts folder of the guest server)
+# and be independent of the current working directory
+$scriptpath = Split-Path $MyInvocation.MyCommand.Path
 
 # Compiled first if not already compiled
-if (!(Test-Path "WtsSessionChecker.dll")) {
+if (!(Test-Path "$scriptpath\WtsSessionChecker.dll")) {
     # Find the csc.exe first
     $csc = (Get-ChildItem "C:\Windows\Microsoft.NET\Framework*" -Recurse -Filter csc.exe | Sort-Object { [version]($_.Directory.Name -replace 'v','') } -Descending | Select-Object -First 1).FullName
 
     # Compile the C# module into a compiled module
-    &$csc /target:library /out:WtsSessionChecker.dll WtsSessionChecker.cs | Out-Null
+    &$csc /target:library /out:"$scriptpath\WtsSessionChecker.dll" "$scriptpath\WtsSessionChecker.cs" | Out-Null
 }
 
-Add-Type -Path ".\WtsSessionChecker.dll"
+Add-Type -Path "$scriptpath\WtsSessionChecker.dll"
 
 if ([WtsSessionChecker]::HasActiveRdpSession()) {'1'} else {'0'}
