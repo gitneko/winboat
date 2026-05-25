@@ -6,7 +6,6 @@
 # Original script from
 # https://simeononsecurity.com/guides/boost-powershell-performance-with-ngen/#how-to-use-ngen-with-powershell
 function Optimize-PowershellAssemblies {
-    # NGEN powershell assembly, improves startup time of powershell by 10x
     $old_path = $env:path
 
     try {
