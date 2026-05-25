@@ -18,15 +18,25 @@
 # and be independent of the current working directory
 $scriptpath = Split-Path $MyInvocation.MyCommand.Path
 
-# Compiled first if not already compiled
+# Compile first if not already compiled
 if (!(Test-Path "$scriptpath\WtsSessionChecker.dll")) {
     # Find the csc.exe first
     $csc = (Get-ChildItem "C:\Windows\Microsoft.NET\Framework*" -Recurse -Filter csc.exe | Sort-Object { [version]($_.Directory.Name -replace 'v','') } -Descending | Select-Object -First 1).FullName
 
     # Compile the C# module into a compiled module
     &$csc /target:library /out:"$scriptpath\WtsSessionChecker.dll" "$scriptpath\WtsSessionChecker.cs" | Out-Null
+
+    # Compile it with the NGEN compiler for better performance in PowerShell
+    $old_path = $env:path
+    try {
+        $env:path = [Runtime.InteropServices.RuntimeEnvironment]::GetRuntimeDirectory()
+        ngen install "$scriptpath\WtsSessionChecker.dll" | Out-Null
+    } finally {
+        $env:path = $old_path
+    }
 }
 
+# Load the DLL
 Add-Type -Path "$scriptpath\WtsSessionChecker.dll"
 
 if ([WtsSessionChecker]::HasActiveRdpSession()) {'1'} else {'0'}

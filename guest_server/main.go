@@ -186,7 +186,12 @@ func installBalloon(w http.ResponseWriter, r *http.Request) {
 
 func getRdpConnectedStatus(w http.ResponseWriter, r *http.Request) {
 	// Check for RDP Status via quser.exe
-	// But use Powershell for locale-independent processing
+	// But use Powershell for processing (we currently just check whether status has a capital A [for Active/Aktiv/Aktif/...])
+	//
+	// An alternative would be using a compiled module for locale independent processing, but it's quite slower at worst case
+	// Though I'm not sure whether that's actually just PowerShell or Golang has its hands in too
+	// cmd := exec.Command("powershell", "-ExecutionPolicy", "Bypass", "-File", "scripts\\has-rdp-sessions-compiled.ps1")
+
 	cmd := exec.Command("powershell", "-NoProfile", "-NoLogo", "-Command", "if(C:\\Windows\\System32\\quser.exe 2>&1 | Select-Object -Skip 1 | ForEach-Object { $_ -replace '\\s{2,}', ',' } | ConvertFrom-Csv -Header 'UserName','SessionName','ID','State','IdleTime','LogonTime' | Where-Object { $_.SessionName -match 'rdp'} | Where-Object { $_.State.startsWith('A') }) {'1'} else {'0'}")
 	output, _ := cmd.Output()
 
