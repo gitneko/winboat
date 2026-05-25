@@ -126,25 +126,31 @@ export class QMPManager extends EventEmitter<QMPEvents> {
     private qmpSocket!: Socket;
     private buffer: Buffer = Buffer.alloc(0);
     private commandId: number = 0;
-    private pendingCommands: Map<number, { resolve: (data: any) => void; reject: (error: Error) => void; timeout: NodeJS.Timeout }> = new Map();
+    private pendingCommands: Map<
+        number,
+        { resolve: (data: any) => void; reject: (error: Error) => void; timeout: NodeJS.Timeout }
+    > = new Map();
 
     /**
      * Please use {@link QMPManager.createConnection} instead.
      */
-    private constructor(private host: string, private port: number) {
+    private constructor(
+        private host: string,
+        private port: number,
+    ) {
         super();
     }
 
     private async connect(): Promise<void> {
         return new Promise((resolve, reject) => {
-            this.once("message", (message) => {
+            this.once("message", message => {
                 if ("QMP" in message) {
                     resolve();
                 } else {
                     reject(new Error(`Invalid QMP greeting: ${JSON.stringify(message)}`));
                 }
             });
-            
+
             this.qmpSocket = createConnection({ host: this.host, port: this.port }, () => {
                 this.qmpSocket.once("error", reject);
                 this.qmpSocket.on("data", this.handleData);
@@ -174,7 +180,7 @@ export class QMPManager extends EventEmitter<QMPEvents> {
                 }
             }
         }
-    }
+    };
 
     private handleMessage(message: any) {
         if ("event" in message) {
@@ -228,7 +234,10 @@ export class QMPManager extends EventEmitter<QMPEvents> {
         timeout?: number,
     ): Promise<QMPResponse<C>> {
         const id = ++this.commandId;
-        const actualTimeout = typeof qmpArgument_or_timeout === "number" ? qmpArgument_or_timeout : (timeout ?? QMPManager.DEFAULT_COMMAND_TIMEOUT);
+        const actualTimeout =
+            typeof qmpArgument_or_timeout === "number"
+                ? qmpArgument_or_timeout
+                : (timeout ?? QMPManager.DEFAULT_COMMAND_TIMEOUT);
         const actualArgument = typeof qmpArgument_or_timeout === "object" ? qmpArgument_or_timeout : undefined;
         const message = {
             execute: command,
@@ -270,24 +279,32 @@ export class QMPManager extends EventEmitter<QMPEvents> {
                 return resolve(false);
             }
 
-            const tm = setTimeout(_ => {
+            let timeout: ReturnType<typeof setTimeout>;
+            let settled = false;
+
+            const finish = (alive: boolean) => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timeout);
+                resolve(alive);
+            };
+
+            timeout = setTimeout(() => {
                 logger.warn("Querying status of QMP connection timed out.");
-                resolve(false);
+                finish(false);
             }, QMPManager.IS_ALIVE_TIMEOUT);
 
             this.executeCommand("query-status")
                 .then(response => {
                     assert("return" in response);
-                    clearTimeout(tm);
-                    resolve(true);
+                    finish(true);
                 })
                 .catch(e => {
                     logger.error(`There was an error querying status of QMP connection`);
                     logger.error(e);
                 })
                 .finally(() => {
-                    clearTimeout(tm);
-                    resolve(false);
+                    finish(false);
                 });
         });
     }

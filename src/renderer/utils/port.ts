@@ -1,4 +1,4 @@
-import { type ComposeConfig } from "../../types";
+import { type ComposeConfig, LongPortMapping } from "../../types";
 import { GUEST_RDP_PORT, PORT_MAX, PORT_SEARCH_RANGE, PORT_SPACING, WINBOAT_DIR } from "../lib/constants";
 import { createLogger } from "./log";
 import path from "path";
@@ -115,8 +115,8 @@ export class ComposePortEntry {
      * @note If it was initialized from a compose port entry with implicit default values, then those will be included explicitly (e.g. `/tcp` or `0.0.0.0` binding)
      */
     get entry(): string {
-        const host = Number.isNaN(this.host) ? "" : this.host; // This accounts for podman's empty host (see: podman publish syntax)
-        return `${this.hostIP}:${host}:${this.container}/${this.protocol}`;
+        const host = typeof this.host === "number" && Number.isNaN(this.host) ? "" : this.host.toString(); // This accounts for podman's empty host (see: podman publish syntax)
+        return `${this.hostIP}:${host}:${this.container.toString()}/${this.protocol}`;
     }
 
     static parseProtocol(entry: string): PortEntryProtocol {
@@ -289,7 +289,7 @@ export class ComposePortMapper {
 
         // TODO: Create ComposePortEntry constructor overload for Ranges as well to avoid this
         this.shortPorts[insertAt] = new ComposePortEntry(
-            `${_options?.hostIP ?? "0.0.0.0"}:${_host}:${_guestPort}/${_options?.protocol ?? "tcp"}`,
+            `${_options?.hostIP ?? "0.0.0.0"}:${_host.toString()}:${_guestPort.toString()}/${_options?.protocol ?? "tcp"}`,
         );
     }
 
@@ -332,10 +332,13 @@ export class ComposePortMapper {
         return new Promise((resolve, reject) => {
             const server = createServer();
 
-            server.once("error", (err: any) => {
+            server.once("error", (err: NodeJS.ErrnoException) => {
                 if (err.code === "EADDRINUSE") {
                     resolve(false);
+                    return;
                 }
+
+                reject(err);
             });
 
             server.once("listening", () => {
