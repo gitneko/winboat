@@ -70,6 +70,19 @@
         <div>
             <x-label class="mb-4 text-neutral-300">Container</x-label>
             <div class="flex flex-col gap-4">
+                <!-- CPU Cores -->
+                <ConfigCard
+                    icon="solar:cpu-bold"
+                    title="CPU Cores"
+                    desc="How many CPU Cores are allocated to the Windows virtual machine"
+                    type="number"
+                    unit="Cores"
+                    :min="2"
+                    :max="maxNumCores"
+                    :disabled="isContainerRunning"
+                    v-model:value="numCores"
+                />
+
                 <!-- RAM Allocation -->
                 <ConfigCard
                     icon="game-icons:ram"
@@ -90,19 +103,6 @@
                     desc="If enabled, Windows virtual machine memory will be reclaimed when the computer is under memory pressure"
                     type="switch"
                     v-model:value="memoryBallooning"
-                />
-
-                <!-- CPU Cores -->
-                <ConfigCard
-                    icon="solar:cpu-bold"
-                    title="CPU Cores"
-                    desc="How many CPU Cores are allocated to the Windows virtual machine"
-                    type="number"
-                    unit="Cores"
-                    :min="2"
-                    :max="maxNumCores"
-                    :disabled="isContainerRunning"
-                    v-model:value="numCores"
                 />
 
                 <!-- Virtual Disk Size -->
