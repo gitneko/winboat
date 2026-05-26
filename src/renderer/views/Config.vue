@@ -105,6 +105,19 @@
                     v-model:value="numCores"
                 />
 
+                <!-- Virtual Disk Size -->
+                <ConfigCard
+                    icon="carbon:vmdk-disk"
+                    title="Virtual Disk Size"
+                    desc="Capacity of the virtual hard disk presented to Windows. The disk image can only be grown; shrinking requires a Factory Reset."
+                    type="number"
+                    unit="GB"
+                    :min="MIN_DISK_GB"
+                    :max="maxDiskGB"
+                    :disabled="isContainerRunning"
+                    v-model:value="diskGB"
+                />
+
                 <!-- Shared Folder -->
                 <ConfigCard
                     icon="fluent:folder-link-32-filled"
@@ -808,16 +821,29 @@ import { Icon } from "@iconify/vue";
 import { MultiMonitorMode, RdpArg, WinboatConfig } from "../lib/config";
 import { USBManager, type PTSerializableDeviceInfo } from "../lib/usbmanager";
 import { type Device } from "usb";
-import { USB_VID_BLACKLIST, RESTART_ON_FAILURE, RESTART_NO, GUEST_RDP_PORT, GUEST_QMP_PORT } from "../lib/constants";
+import {
+    USB_VID_BLACKLIST,
+    RESTART_ON_FAILURE,
+    RESTART_NO,
+    GUEST_RDP_PORT,
+    GUEST_QMP_PORT,
+    MIN_DISK_GB,
+} from "../lib/constants";
 import { ComposePortEntry, ComposePortMapper, PortManager, Range } from "../utils/port";
 import CustomVolumeMounts from "../components/CustomVolumeMounts.vue";
 import type { CustomVolumeMount } from "../../types";
-import { applyCustomMounts, getSharedFolderHostPath, isRootSharedFolderMount } from "../lib/volumes";
+import {
+    applyCustomMounts,
+    getSharedFolderHostPath,
+    getStorageHostPath,
+    isRootSharedFolderMount,
+} from "../lib/volumes";
 const { app }: typeof import("@electron/remote") = require("@electron/remote");
 const electron: typeof import("electron") = require("electron").remote || require("@electron/remote");
 const os: typeof import("os") = require("node:os");
 const fs: typeof import("fs") = require("fs");
 const path: typeof import("path") = require("path");
+const checkDiskSpace: typeof import("check-disk-space").default = require("check-disk-space").default;
 
 // For Resources
 const compose = ref<ComposeConfig | null>(null);
@@ -827,6 +853,9 @@ const maxNumCores = ref(0);
 const ramGB = ref(0);
 const origRamGB = ref(0);
 const maxRamGB = ref(0);
+const diskGB = ref(64);
+const origDiskGB = ref(64);
+const maxDiskGB = ref(2048);
 const memoryBallooning = ref(false);
 const origMemoryBallooning = ref(false);
 const shareFolder = ref(false);
@@ -854,6 +883,22 @@ function updateShutdownTimerLength(value: string | number) {
 
     wbConfig.config.shutdownTimerLength = val;
     shutdownTimerLength.value = val;
+}
+
+/**
+ * Robustly converts a DISK_SIZE string ("64G", "128G", "1T", etc.) into gigabytes.
+ * Used for both reading the current compose value and (later) writing it back.
+ */
+function parseDiskSizeToGB(diskSizeStr: string): number {
+    if (!diskSizeStr) return 64;
+    const upper = diskSizeStr.toUpperCase().trim();
+    const numMatch = upper.match(/(\d+)/);
+    if (!numMatch) return 64;
+    let num = parseInt(numMatch[1], 10);
+    if (upper.includes("T")) {
+        num *= 1024;
+    }
+    return num;
 }
 
 // For Backup & Restore
@@ -1011,6 +1056,9 @@ async function assignValues() {
     ramGB.value = Number(compose.value.services.windows.environment.RAM_SIZE.split("G")[0]);
     origRamGB.value = ramGB.value;
 
+    diskGB.value = parseDiskSizeToGB(compose.value.services.windows.environment.DISK_SIZE);
+    origDiskGB.value = diskGB.value;
+
     memoryBallooning.value =
         "BALLOONING" in compose.value.services.windows.environment &&
         compose.value.services.windows.environment["BALLOONING"] == "Y";
@@ -1043,6 +1091,23 @@ async function assignValues() {
     maxRamGB.value = specs.ramGB;
     maxNumCores.value = specs.cpuCores;
 
+    // Compute a safe upper bound for disk growth from free space on the storage host path
+    // (falls back gracefully for legacy named "data" volumes).
+    const storageHostPath = getStorageHostPath(compose.value!);
+    if (storageHostPath && fs.existsSync(storageHostPath)) {
+        try {
+            const diskInfo = await checkDiskSpace(storageHostPath);
+            const freeGB = Math.floor(diskInfo.free / (1024 * 1024 * 1024));
+            maxDiskGB.value = diskGB.value + Math.max(freeGB - 5, 0);
+            if (maxDiskGB.value < MIN_DISK_GB) maxDiskGB.value = 2048;
+        } catch (e) {
+            console.warn("[Config] Failed to get disk space for storage path:", e);
+            maxDiskGB.value = 2048;
+        }
+    } else {
+        maxDiskGB.value = 2048;
+    }
+
     shutdownTimerLength.value = wbConfig.config.shutdownTimerLength;
 
     refreshAvailableDevices();
@@ -1055,6 +1120,7 @@ async function assignValues() {
 async function saveCompose() {
     compose.value!.services.windows.environment.RAM_SIZE = `${ramGB.value}G`;
     compose.value!.services.windows.environment.CPU_CORES = `${numCores.value}`;
+    compose.value!.services.windows.environment.DISK_SIZE = `${diskGB.value}G`;
 
     if (memoryBallooning.value) {
         compose.value!.services.windows.environment["BALLOONING"] = "Y";
@@ -1182,6 +1248,22 @@ const errors = computedAsync(async () => {
         errCollection.push("You cannot allocate more RAM to Windows than you have available");
     }
 
+    if (!diskGB.value || diskGB.value < MIN_DISK_GB) {
+        errCollection.push("You must allocate at least 32 GB of disk space for Windows to run properly");
+    }
+
+    if (diskGB.value < origDiskGB.value) {
+        errCollection.push(
+            "Virtual disk size can only be grown, not shrunk. To use a smaller disk, perform a factory reset.",
+        );
+    }
+
+    if (diskGB.value > maxDiskGB.value) {
+        errCollection.push(
+            `You cannot allocate more than ~${maxDiskGB.value} GB as that exceeds available host disk space for storage.`,
+        );
+    }
+
     // @ts-ignore The left-hand side of an 'instanceof' expression must be of type 'any', an object type or a type parameter.
     if (freerdpPort.value instanceof Range) {
         const randomOpenPort = await PortManager.getOpenPortInRange(freerdpPort.value.start, freerdpPort.value.end);
@@ -1223,6 +1305,7 @@ const saveButtonDisabled = computed(() => {
     const hasResourceChanges =
         origNumCores.value !== numCores.value ||
         origRamGB.value !== ramGB.value ||
+        origDiskGB.value !== diskGB.value ||
         origMemoryBallooning.value !== memoryBallooning.value ||
         openToLan.value !== origOpenToLan.value ||
         shareFolder.value !== origShareFolder.value ||
