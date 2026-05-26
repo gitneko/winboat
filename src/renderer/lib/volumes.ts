@@ -37,7 +37,10 @@ export function validateHostPath(hostPath: string): void {
  */
 export function validateShareName(name: string): void {
     if (!name) throw new Error("Name is required");
-    if (!/^[a-zA-Z0-9_-]+$/.test(name)) throw new Error(`Name '${name}' contains invalid characters, only letters, numbers, underscores, and hyphens are allowed`);
+    if (!/^[a-zA-Z0-9_-]+$/.test(name))
+        throw new Error(
+            `Name '${name}' contains invalid characters, only letters, numbers, underscores, and hyphens are allowed`,
+        );
     if (name.length > 32) throw new Error(`Name '${name}' exceeds maximum length of 32 characters`);
 }
 
@@ -130,19 +133,40 @@ export function isCustomMount(volumeStr: string): boolean {
  * Apply custom mounts to a compose config
  * Removes existing custom mounts and adds enabled ones
  */
-export function applyCustomMounts(
-    compose: ComposeConfig,
-    mounts: CustomVolumeMount[]
-): void {
+export function applyCustomMounts(compose: ComposeConfig, mounts: CustomVolumeMount[]): void {
     // Remove existing custom mounts (keep system volumes)
-    compose.services.windows.volumes = compose.services.windows.volumes.filter(
-        vol => !isCustomMount(vol)
-    );
+    compose.services.windows.volumes = compose.services.windows.volumes.filter(vol => !isCustomMount(vol));
 
     // Add enabled custom mounts
-    const enabledMounts = mounts
-        .filter(m => m.enabled)
-        .map(mountToVolumeString);
+    const enabledMounts = mounts.filter(m => m.enabled).map(mountToVolumeString);
 
     compose.services.windows.volumes.push(...enabledMounts);
+}
+
+/**
+ * Returns the volume string that maps to /storage inside the container (either named "data" or a bind mount).
+ */
+export function getStorageVolume(compose: ComposeConfig): string | undefined {
+    return compose.services.windows.volumes.find(vol => {
+        const p = getVolumePaths(vol);
+        return p && p[1] === "/storage";
+    });
+}
+
+/**
+ * Returns the resolved absolute host path for the /storage volume when it is a bind mount.
+ * Returns null for named volumes (e.g. "data:/storage") or when no storage volume is found.
+ * This is used by the Config UI to compute a safe upper bound for DISK_SIZE growth.
+ */
+export function getStorageHostPath(compose: ComposeConfig): string | null {
+    const storageVolume = getStorageVolume(compose);
+    if (!storageVolume) return null;
+    const paths = getVolumePaths(storageVolume);
+    if (!paths) return null;
+    const [hostPath] = paths;
+    // Named volume ("data") or non-path volume has no usable host directory
+    if (!hostPath || hostPath === "data" || (!hostPath.startsWith("/") && !hostPath.includes("${"))) {
+        return null;
+    }
+    return resolveComposeHostPath(hostPath);
 }

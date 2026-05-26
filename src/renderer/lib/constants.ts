@@ -106,6 +106,8 @@ export const PORT_MAX = 65535;
 export const PORT_SEARCH_RANGE = 100;
 export const PORT_SPACING = 1000;
 
+export const MIN_DISK_GB = 32;
+
 // USB
 export const USB_CLASS_IMAGING = 6;
 export const USB_INTERFACE_MTP = 5;
